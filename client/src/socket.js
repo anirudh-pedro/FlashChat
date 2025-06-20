@@ -1,7 +1,9 @@
 import { io } from 'socket.io-client';
 
 // Default to localhost for development
-const ENDPOINT = import.meta.env.VITE_SERVER_ENDPOINT || 'http://localhost:5000';
+const ENDPOINT = process.env.NODE_ENV === 'production'
+  ? 'https://flashchat-oyd6.onrender.com'
+  : 'http://localhost:5000';
 
 // Create a socket instance
 let socket;

@@ -14,9 +14,10 @@ const server = http.createServer(app);
 
 // Middleware
 app.use(cors({
-  origin: '*', // For testing, you can use '*' (not recommended for production)
-  methods: ['GET', 'POST'],
-  credentials: true
+  origin: process.env.NODE_ENV === 'production' 
+    ? 'https://flashchat-oyd6.onrender.com' 
+    : '*',
+  methods: ['GET', 'POST']
 }));
 app.use(express.json());
 
