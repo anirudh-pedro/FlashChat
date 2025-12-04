@@ -59,8 +59,8 @@ export const getAreaIdentifier = (latitude, longitude, precision = 1) => {
   const roundedLat = Math.round(latitude * Math.pow(10, precision)) / Math.pow(10, precision);
   const roundedLong = Math.round(longitude * Math.pow(10, precision)) / Math.pow(10, precision);
   
-  // Create location-based room ID
-  return `loc_${roundedLat}_${roundedLong}`;
+  // Create location-based room ID with uppercase prefix
+  return `LOC_${roundedLat}_${roundedLong}`;
 };
 
 /**

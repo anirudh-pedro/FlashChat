@@ -39,7 +39,9 @@ const JoinPage = () => {
       initSocket();
       
       const locationRoom = await getLocationBasedRoom();
-      navigate(`/chat?room=${locationRoom}&username=${username}&joinMethod=location`);
+      // Normalize username to match server-side normalization
+      const normalizedUsername = username.trim().toLowerCase();
+      navigate(`/chat?room=${locationRoom}&username=${normalizedUsername}&joinMethod=location`);
     } catch (err) {
       setError(err.message || 'Failed to get your location. Please try again or use Room ID instead.');
     } finally {
@@ -58,7 +60,9 @@ const JoinPage = () => {
       return;
     }
     
-    navigate(`/chat?room=${roomId}&username=${username}&joinMethod=roomId`);
+    // Normalize username to match server-side normalization
+    const normalizedUsername = username.trim().toLowerCase();
+    navigate(`/chat?room=${roomId}&username=${normalizedUsername}&joinMethod=roomId`);
   };
 
   const handleSubmit = (e) => {

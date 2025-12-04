@@ -9,7 +9,7 @@ const ROOM_CLEANUP_DELAY = 30 * 60 * 1000; // 30 minutes in milliseconds
  * Add a new user to the in-memory storage
  * @param {Object} userInfo - User information
  * @param {string} userInfo.id - Socket ID
- * @param {string} userInfo.username - User's display name
+ * @param {string} userInfo.username - User's display name (should already be normalized)
  * @param {string} userInfo.room - Room ID
  * @returns {Object} - User object or error
  */
@@ -19,7 +19,7 @@ const addUser = ({ id, username, room }) => {
     return { error: 'Username and room are required!' };
   }
   
-  // Normalize inputs
+  // Normalize inputs - username should already be lowercase from client
   username = username.trim().toLowerCase();
   room = room.trim().toUpperCase();
   
