@@ -10,12 +10,20 @@ let socket;
 
 // Initialize socket connection
 export const initSocket = () => {
+  // Return existing socket if already connected
+  if (socket && socket.connected) {
+    console.log("Socket already connected", socket.id);
+    return socket;
+  }
+  
   console.log("Initializing socket connection");
   socket = io(ENDPOINT, {
-    transports: ['websocket'],
+    transports: ['websocket', 'polling'], // Use polling as fallback
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
+    timeout: 20000, // Increase timeout to 20 seconds
+    autoConnect: true,
   });
   
   socket.on('connect', () => {
@@ -23,7 +31,15 @@ export const initSocket = () => {
   });
   
   socket.on('connect_error', (err) => {
-    console.error("Socket connection error:", err);
+    console.error("Socket connection error:", err.message);
+  });
+  
+  socket.on('reconnect_attempt', (attemptNumber) => {
+    console.log(`Reconnection attempt ${attemptNumber}`);
+  });
+  
+  socket.on('reconnect', (attemptNumber) => {
+    console.log(`Reconnected after ${attemptNumber} attempts`);
   });
   
   return socket;

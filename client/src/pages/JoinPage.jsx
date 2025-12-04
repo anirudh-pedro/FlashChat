@@ -16,15 +16,38 @@ const JoinPage = () => {
 
   const handleGenerateRandomRoomId = async () => {
     setIsLoading(true);
+    setError('');
     try {
       // Initialize socket if not already done
-      initSocket();
+      const socket = initSocket();
+      
+      // Wait for socket to connect before generating room ID
+      if (!socket.connected) {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            socket.off('connect', onConnect);
+            reject(new Error('Connection timeout'));
+          }, 10000);
+          
+          const onConnect = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          socket.once('connect', onConnect);
+          if (socket.connected) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      }
       
       // Generate a unique room ID that's not already in use
       const uniqueRoomId = await generateUniqueRoomId();
       setRoomId(uniqueRoomId);
     } catch (err) {
       console.error("Error generating room ID:", err);
+      setError('Failed to connect. Please try again.');
     } finally {
       setIsLoading(false);
     }
@@ -35,8 +58,28 @@ const JoinPage = () => {
     setError('');
     
     try {
-      // Initialize socket
-      initSocket();
+      // Initialize socket and wait for connection
+      const socket = initSocket();
+      
+      if (!socket.connected) {
+        await new Promise((resolve, reject) => {
+          const timeout = setTimeout(() => {
+            socket.off('connect', onConnect);
+            reject(new Error('Connection timeout'));
+          }, 10000);
+          
+          const onConnect = () => {
+            clearTimeout(timeout);
+            resolve();
+          };
+          
+          socket.once('connect', onConnect);
+          if (socket.connected) {
+            clearTimeout(timeout);
+            resolve();
+          }
+        });
+      }
       
       const locationRoom = await getLocationBasedRoom();
       // Normalize username to match server-side normalization

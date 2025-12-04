@@ -38,16 +38,25 @@ const ChatPage = () => {
     const socketInstance = initSocket();
     setSocket(socketInstance);
 
-    // Join chat room
-    joinRoom({ username, room }, (error) => {
-      if (error) {
-        toast.error(error);
-        navigate("/join");
-      }
-    });
+    // Wait for connection before joining room
+    const handleConnection = () => {
+      joinRoom({ username, room }, (error) => {
+        if (error) {
+          toast.error(error);
+          navigate("/join");
+        }
+      });
+    };
+
+    if (socketInstance.connected) {
+      handleConnection();
+    } else {
+      socketInstance.once('connect', handleConnection);
+    }
 
     // Cleanup on component unmount ONLY, not on every re-render
     return () => {
+      socketInstance.off('connect', handleConnection);
       leaveRoom();
       disconnectSocket();
     };
