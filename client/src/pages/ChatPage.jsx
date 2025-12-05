@@ -26,6 +26,7 @@ const ChatPage = () => {
   const usernameRef = useRef(username);
   const roomRef = useRef(room);
   const hasJoinedRef = useRef(false);
+  const isInitialConnectionRef = useRef(true); // Track if this is the first connection
   
   useEffect(() => {
     usernameRef.current = username;
@@ -78,6 +79,7 @@ const ChatPage = () => {
         leaveRoom();
         hasJoinedRef.current = false;
       }
+      isInitialConnectionRef.current = true; // Reset for next mount
       disconnectSocket();
     };
   }, []); // Keep empty - only run once on mount
@@ -107,6 +109,12 @@ const ChatPage = () => {
     
     // Handle reconnection - rejoin room automatically
     const handleReconnect = () => {
+      // Skip if this is the initial connection (already handled in first useEffect)
+      if (isInitialConnectionRef.current) {
+        isInitialConnectionRef.current = false;
+        return;
+      }
+      
       console.log("Socket reconnected, rejoining room...");
       toast.info("Reconnected to chat");
       
