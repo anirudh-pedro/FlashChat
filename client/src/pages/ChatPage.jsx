@@ -84,14 +84,47 @@ const ChatPage = () => {
     socket.on("userLeft", (username) => {
       toast.info(`${username} left the chat`);
     });
+    
+    // Handle reconnection - rejoin room automatically
+    const handleReconnect = () => {
+      console.log("Socket reconnected, rejoining room...");
+      toast.info("Reconnected to chat");
+      
+      joinRoom({ username, room }, (error) => {
+        if (error) {
+          toast.error("Failed to rejoin room: " + error);
+          // Give user option to manually rejoin
+          setTimeout(() => {
+            navigate("/join");
+          }, 3000);
+        }
+      });
+    };
+    
+    // Handle disconnection
+    const handleDisconnect = (reason) => {
+      console.log("Socket disconnected:", reason);
+      if (reason === "io server disconnect") {
+        // Server disconnected the socket, manual reconnection needed
+        toast.warning("Disconnected from server");
+      } else {
+        // Client disconnected, will auto-reconnect
+        toast.warning("Connection lost, reconnecting...");
+      }
+    };
+    
+    socket.on("connect", handleReconnect);
+    socket.on("disconnect", handleDisconnect);
 
     return () => {
       socket.off("message");
       socket.off("roomData");
       socket.off("userJoined");
       socket.off("userLeft");
+      socket.off("connect", handleReconnect);
+      socket.off("disconnect", handleDisconnect);
     };
-  }, [socket]);
+  }, [socket, username, room, navigate]);
 
   const sendMessage = (message) => {
     const socketInstance = getSocket();

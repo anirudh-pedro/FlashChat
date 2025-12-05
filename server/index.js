@@ -51,6 +51,25 @@ server.listen(PORT, () => {
 // Handle server shutdown gracefully
 process.on('SIGINT', () => {
   console.log('Shutting down server...');
+  
+  // Clean up all room timers before shutdown
+  const { cleanupAllTimers } = require('./utils/userManager');
+  cleanupAllTimers();
+  
+  io.close();
+  server.close(() => {
+    console.log('Server shut down successfully');
+    process.exit(0);
+  });
+});
+
+process.on('SIGTERM', () => {
+  console.log('SIGTERM received, shutting down gracefully...');
+  
+  // Clean up all room timers before shutdown
+  const { cleanupAllTimers } = require('./utils/userManager');
+  cleanupAllTimers();
+  
   io.close();
   server.close(() => {
     console.log('Server shut down successfully');

@@ -8,6 +8,7 @@ const ChatInput = ({ onSendMessage }) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const inputRef = useRef(null);
+  const MAX_MESSAGE_LENGTH = 1000;
   
   useEffect(() => {
     // Close emoji picker when clicking outside
@@ -27,10 +28,20 @@ const ChatInput = ({ onSendMessage }) => {
   const handleSubmit = (e) => {
     e.preventDefault();
     
-    if (message.trim()) {
-      onSendMessage(message);
-      setMessage("");
+    const trimmedMessage = message.trim();
+    
+    if (!trimmedMessage) {
+      return;
     }
+    
+    // Check message length (client-side validation)
+    if (trimmedMessage.length > 1000) {
+      alert("Message is too long. Maximum 1000 characters allowed.");
+      return;
+    }
+    
+    onSendMessage(trimmedMessage);
+    setMessage("");
   };
 
   const handleEmojiClick = (emojiObject) => {
@@ -43,8 +54,17 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
+  const messageLength = message.length;
+  const isNearLimit = messageLength > 900;
+  const isOverLimit = messageLength > MAX_MESSAGE_LENGTH;
+
   return (
     <div className="bg-gray-800 border-t border-gray-700 p-3 relative">
+      {isNearLimit && (
+        <div className={`text-xs text-right pb-1 ${isOverLimit ? 'text-red-400' : 'text-yellow-400'}`}>
+          {messageLength}/{MAX_MESSAGE_LENGTH} characters
+        </div>
+      )}
       {showEmojiPicker && (
         <div 
           ref={emojiPickerRef}
@@ -128,6 +148,7 @@ const ChatInput = ({ onSendMessage }) => {
           value={message}
           onChange={(e) => setMessage(e.target.value)}
           placeholder="Type a message..."
+          maxLength={MAX_MESSAGE_LENGTH}
           className="flex-1 py-2.5 px-4 text-sm bg-gray-700 text-white rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400"
         />
         

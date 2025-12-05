@@ -56,6 +56,13 @@ const removeUser = (id) => {
   // Update room user count and setup cleanup if needed
   if (user && user.room && rooms.has(user.room)) {
     const roomData = rooms.get(user.room);
+    
+    // Clear any existing cleanup timer first to prevent memory leaks
+    if (roomData.cleanupTimer) {
+      clearTimeout(roomData.cleanupTimer);
+      roomData.cleanupTimer = null;
+    }
+    
     roomData.userCount -= 1;
     
     // If no users left in the room, schedule cleanup
@@ -63,9 +70,16 @@ const removeUser = (id) => {
       console.log(`Room ${user.room} is empty. Scheduling cleanup in ${ROOM_CLEANUP_DELAY/60000} minutes.`);
       
       roomData.cleanupTimer = setTimeout(() => {
-        // Verify the room is still empty before removing
-        if (rooms.has(user.room) && rooms.get(user.room).userCount <= 0) {
+        // Double-check: verify the room still exists and is still empty before removing
+        const currentRoomData = rooms.get(user.room);
+        if (currentRoomData && currentRoomData.userCount <= 0) {
           console.log(`Cleaning up inactive room: ${user.room}`);
+          
+          // Clear the timer reference before deleting
+          if (currentRoomData.cleanupTimer) {
+            clearTimeout(currentRoomData.cleanupTimer);
+          }
+          
           rooms.delete(user.room);
         }
       }, ROOM_CLEANUP_DELAY);
@@ -132,11 +146,34 @@ const trackRoom = (roomId) => {
   const roomData = rooms.get(roomId);
   roomData.userCount += 1;
   
-  // Clear any existing cleanup timer
+  // Clear any existing cleanup timer when a user joins
+  // This prevents the room from being deleted while users are joining
   if (roomData.cleanupTimer) {
+    console.log(`Clearing cleanup timer for room ${roomId} - user rejoining`);
     clearTimeout(roomData.cleanupTimer);
     roomData.cleanupTimer = null;
   }
+};
+
+/**
+ * Cleanup function to clear all timers (useful for graceful shutdown)
+ */
+const cleanupAllTimers = () => {
+  console.log('Cleaning up all room timers...');
+  let timerCount = 0;
+  
+  rooms.forEach((roomData, roomId) => {
+// Update exports to include new functions
+module.exports = {
+  addUser,
+  removeUser,
+  getUser,
+  getUsersInRoom,
+  getRoomCount,
+  isRoomActive,
+  getActiveRoomIds,
+  cleanupAllTimers
+};users.length = 0; // Clear users array
 };
 
 // Add this function to check if a room exists and is active

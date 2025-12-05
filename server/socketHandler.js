@@ -20,6 +20,17 @@ const setupSocketHandlers = (io) => {
           if (callback) callback({ error: 'Username and room are required' });
           return;
         }
+        
+        // Validate username length
+        if (username.trim().length > 20) {
+          if (callback) callback({ error: 'Username too long (max 20 characters)' });
+          return;
+        }
+        
+        if (username.trim().length < 2) {
+          if (callback) callback({ error: 'Username too short (min 2 characters)' });
+          return;
+        }
 
         // Add user to in-memory storage
         const { error, user } = addUser({ id: socket.id, username, room });
@@ -73,10 +84,29 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // Create message object
+        // Validate message
+        if (!message || typeof message !== 'string') {
+          if (callback) callback({ error: 'Invalid message format' });
+          return;
+        }
+
+        const trimmedMessage = message.trim();
+        
+        // Check message length
+        if (trimmedMessage.length === 0) {
+          if (callback) callback({ error: 'Message cannot be empty' });
+          return;
+        }
+        
+        if (trimmedMessage.length > 1000) {
+          if (callback) callback({ error: 'Message too long (max 1000 characters)' });
+          return;
+        }
+
+        // Create message object with validated content
         const messageObj = {
           user: user.username,
-          text: message,
+          text: trimmedMessage,
           createdAt: new Date().toISOString()
         };
 
