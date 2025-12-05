@@ -21,6 +21,16 @@ const ChatPage = () => {
   const username = params.get("username");
   const room = params.get("room");
   const joinMethod = params.get("joinMethod");
+  
+  // Use refs to avoid re-running effects when these values are used in callbacks
+  const usernameRef = useRef(username);
+  const roomRef = useRef(room);
+  const hasJoinedRef = useRef(false);
+  
+  useEffect(() => {
+    usernameRef.current = username;
+    roomRef.current = room;
+  }, [username, room]);
 
   useEffect(() => {
     if (!username || !room) {
@@ -34,16 +44,23 @@ const ChatPage = () => {
       return;
     }
 
+    // Prevent multiple joins
+    if (hasJoinedRef.current) return;
+
     // Initialize socket connection
     const socketInstance = initSocket();
     setSocket(socketInstance);
 
     // Wait for connection before joining room
     const handleConnection = () => {
+      if (hasJoinedRef.current) return; // Prevent duplicate joins
+      
       joinRoom({ username, room }, (error) => {
         if (error) {
           toast.error(error);
           navigate("/join");
+        } else {
+          hasJoinedRef.current = true;
         }
       });
     };
@@ -54,46 +71,49 @@ const ChatPage = () => {
       socketInstance.once('connect', handleConnection);
     }
 
-    // Cleanup on component unmount ONLY, not on every re-render
+    // Cleanup only on unmount
     return () => {
       socketInstance.off('connect', handleConnection);
-      leaveRoom();
+      if (hasJoinedRef.current) {
+        leaveRoom();
+        hasJoinedRef.current = false;
+      }
       disconnectSocket();
     };
-  }, []); // Empty dependency array or add a stable reference
+  }, []); // Keep empty - only run once on mount
 
   useEffect(() => {
     if (!socket) return;
 
     // Listen for messages
-    socket.on("message", (message) => {
+    const handleMessage = (message) => {
       setMessages((prevMessages) => [...prevMessages, message]);
-    });
+    };
 
     // Listen for room data (users list)
-    socket.on("roomData", ({ users }) => {
+    const handleRoomData = ({ users }) => {
       setUsers(users);
-    });
+    };
 
     // Listen for user joined notifications
-    socket.on("userJoined", (username) => {
+    const handleUserJoined = (username) => {
       toast.info(`${username} joined the chat`);
-    });
+    };
 
     // Listen for user left notifications
-    socket.on("userLeft", (username) => {
+    const handleUserLeft = (username) => {
       toast.info(`${username} left the chat`);
-    });
+    };
     
     // Handle reconnection - rejoin room automatically
     const handleReconnect = () => {
       console.log("Socket reconnected, rejoining room...");
       toast.info("Reconnected to chat");
       
-      joinRoom({ username, room }, (error) => {
+      // Use refs to get current values
+      joinRoom({ username: usernameRef.current, room: roomRef.current }, (error) => {
         if (error) {
           toast.error("Failed to rejoin room: " + error);
-          // Give user option to manually rejoin
           setTimeout(() => {
             navigate("/join");
           }, 3000);
@@ -105,26 +125,29 @@ const ChatPage = () => {
     const handleDisconnect = (reason) => {
       console.log("Socket disconnected:", reason);
       if (reason === "io server disconnect") {
-        // Server disconnected the socket, manual reconnection needed
         toast.warning("Disconnected from server");
-      } else {
-        // Client disconnected, will auto-reconnect
+      } else if (reason !== "io client disconnect") {
+        // Don't show warning for intentional disconnects
         toast.warning("Connection lost, reconnecting...");
       }
     };
     
+    socket.on("message", handleMessage);
+    socket.on("roomData", handleRoomData);
+    socket.on("userJoined", handleUserJoined);
+    socket.on("userLeft", handleUserLeft);
     socket.on("connect", handleReconnect);
     socket.on("disconnect", handleDisconnect);
 
     return () => {
-      socket.off("message");
-      socket.off("roomData");
-      socket.off("userJoined");
-      socket.off("userLeft");
+      socket.off("message", handleMessage);
+      socket.off("roomData", handleRoomData);
+      socket.off("userJoined", handleUserJoined);
+      socket.off("userLeft", handleUserLeft);
       socket.off("connect", handleReconnect);
       socket.off("disconnect", handleDisconnect);
     };
-  }, [socket, username, room, navigate]);
+  }, [socket, navigate]); // Only socket and navigate as dependencies
 
   const sendMessage = (message) => {
     const socketInstance = getSocket();
