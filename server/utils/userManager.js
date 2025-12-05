@@ -163,17 +163,16 @@ const cleanupAllTimers = () => {
   let timerCount = 0;
   
   rooms.forEach((roomData, roomId) => {
-// Update exports to include new functions
-module.exports = {
-  addUser,
-  removeUser,
-  getUser,
-  getUsersInRoom,
-  getRoomCount,
-  isRoomActive,
-  getActiveRoomIds,
-  cleanupAllTimers
-};users.length = 0; // Clear users array
+    if (roomData.cleanupTimer) {
+      clearTimeout(roomData.cleanupTimer);
+      roomData.cleanupTimer = null;
+      timerCount++;
+    }
+  });
+  
+  console.log(`Cleared ${timerCount} pending cleanup timers`);
+  rooms.clear();
+  users.length = 0; // Clear users array
 };
 
 // Add this function to check if a room exists and is active
@@ -194,5 +193,6 @@ module.exports = {
   getUsersInRoom,
   getRoomCount,
   isRoomActive,
-  getActiveRoomIds
+  getActiveRoomIds,
+  cleanupAllTimers
 };
