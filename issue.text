@@ -5,7 +5,7 @@ Add message validation and length limits XX
 Fix socket reconnection logic XX
 Fix memory leaks in room cleanup XX
 Phase 2: Security (Next week)
-Add rate limiting
+Add rate limiting XX
 Add input sanitization
 Add HTTPS enforcement
 Add room capacity limits

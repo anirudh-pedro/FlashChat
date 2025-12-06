@@ -7,6 +7,124 @@ const {
   isRoomActive
 } = require('./utils/userManager');
 
+// ==================== INPUT SANITIZATION ====================
+/**
+ * Sanitize user input to prevent XSS (Cross-Site Scripting) attacks
+ * This function removes or escapes potentially dangerous characters
+ * 
+ * @param {string} input - Raw user input
+ * @returns {string} - Sanitized safe string
+ */
+const sanitizeInput = (input) => {
+  if (typeof input !== 'string') {
+    return '';
+  }
+  
+  return input
+    // Remove null bytes (can cause issues)
+    .replace(/\0/g, '')
+    // Escape HTML special characters to prevent XSS
+    .replace(/&/g, '&amp;')
+    .replace(/</g, '&lt;')
+    .replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;')
+    .replace(/'/g, '&#x27;')
+    .replace(/\//g, '&#x2F;')
+    // Remove any control characters except newline and tab
+    .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
+    // Trim whitespace
+    .trim();
+};
+
+/**
+ * Sanitize username - stricter than general input
+ * Usernames should only contain alphanumeric characters, spaces, underscores, and hyphens
+ * 
+ * @param {string} username - Raw username input
+ * @returns {string} - Sanitized username
+ */
+const sanitizeUsername = (username) => {
+  if (typeof username !== 'string') {
+    return '';
+  }
+  
+  return username
+    .trim()
+    // Remove any characters that aren't alphanumeric, space, underscore, or hyphen
+    .replace(/[^a-zA-Z0-9 _-]/g, '')
+    // Collapse multiple spaces into one
+    .replace(/\s+/g, ' ')
+    // Remove leading/trailing spaces again
+    .trim();
+};
+
+/**
+ * Sanitize room ID - only allow uppercase letters and numbers
+ * 
+ * @param {string} roomId - Raw room ID input
+ * @returns {string} - Sanitized room ID
+ */
+const sanitizeRoomId = (roomId) => {
+  if (typeof roomId !== 'string') {
+    return '';
+  }
+  
+  return roomId
+    .trim()
+    .toUpperCase()
+    // For location-based rooms, allow LOC_ prefix with numbers, dots, and minus
+    // For regular rooms, only allow alphanumeric characters
+    .replace(/[^A-Z0-9._-]/g, '');
+};
+
+/**
+ * Validate and sanitize message content
+ * Checks for dangerous patterns and suspicious content
+ * 
+ * @param {string} message - Raw message input
+ * @returns {Object} - { isValid: boolean, sanitized: string, reason?: string }
+ */
+const sanitizeMessage = (message) => {
+  if (typeof message !== 'string') {
+    return { isValid: false, sanitized: '', reason: 'Invalid message type' };
+  }
+  
+  const trimmed = message.trim();
+  
+  // Check for empty message
+  if (trimmed.length === 0) {
+    return { isValid: false, sanitized: '', reason: 'Empty message' };
+  }
+  
+  // Check for suspicious patterns (basic XSS attempts)
+  const dangerousPatterns = [
+    /<script[^>]*>.*?<\/script>/gi,  // Script tags
+    /javascript:/gi,                   // JavaScript protocol
+    /on\w+\s*=/gi,                    // Event handlers (onclick, onload, etc.)
+    /<iframe/gi,                       // Iframes
+    /<object/gi,                       // Objects
+    /<embed/gi,                        // Embeds
+  ];
+  
+  for (const pattern of dangerousPatterns) {
+    if (pattern.test(trimmed)) {
+      console.warn('🚨 Dangerous pattern detected in message');
+      return { 
+        isValid: false, 
+        sanitized: '', 
+        reason: 'Message contains potentially dangerous content' 
+      };
+    }
+  }
+  
+  // Sanitize the message
+  const sanitized = sanitizeInput(trimmed);
+  
+  return { isValid: true, sanitized };
+};
+
+// ==================== END INPUT SANITIZATION ====================
+
 // ==================== RATE LIMITING ====================
 // Rate limiting configuration
 const RATE_LIMITS = {
@@ -124,19 +242,29 @@ const setupSocketHandlers = (io) => {
           return;
         }
         
-        // Validate username length
-        if (username.trim().length > 20) {
+        // Sanitize username and room ID
+        const sanitizedUsername = sanitizeUsername(username);
+        const sanitizedRoom = sanitizeRoomId(room);
+        
+        // Check if sanitization removed everything (suspicious input)
+        if (!sanitizedUsername || !sanitizedRoom) {
+          if (callback) callback({ error: 'Invalid username or room ID format' });
+          return;
+        }
+        
+        // Validate username length (after sanitization)
+        if (sanitizedUsername.length > 20) {
           if (callback) callback({ error: 'Username too long (max 20 characters)' });
           return;
         }
         
-        if (username.trim().length < 2) {
+        if (sanitizedUsername.length < 2) {
           if (callback) callback({ error: 'Username too short (min 2 characters)' });
           return;
         }
 
-        // Add user to in-memory storage
-        const { error, user } = addUser({ id: socket.id, username, room });
+        // Add user to in-memory storage with sanitized inputs
+        const { error, user } = addUser({ id: socket.id, username: sanitizedUsername, room: sanitizedRoom });
         if (error) return callback({ error });
 
         // Join the socket to the specified room
@@ -194,29 +322,38 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // Validate message
+        // Validate and sanitize message
         if (!message || typeof message !== 'string') {
           if (callback) callback({ error: 'Invalid message format' });
           return;
         }
-
-        const trimmedMessage = message.trim();
         
-        // Check message length
-        if (trimmedMessage.length === 0) {
+        // Sanitize the message (checks for XSS and dangerous content)
+        const sanitizationResult = sanitizeMessage(message);
+        
+        if (!sanitizationResult.isValid) {
+          console.warn(`⚠️ Invalid message from ${user.username}: ${sanitizationResult.reason}`);
+          if (callback) callback({ error: sanitizationResult.reason || 'Invalid message content' });
+          return;
+        }
+        
+        const sanitizedMessage = sanitizationResult.sanitized;
+        
+        // Check message length (after sanitization)
+        if (sanitizedMessage.length === 0) {
           if (callback) callback({ error: 'Message cannot be empty' });
           return;
         }
         
-        if (trimmedMessage.length > 1000) {
+        if (sanitizedMessage.length > 1000) {
           if (callback) callback({ error: 'Message too long (max 1000 characters)' });
           return;
         }
 
-        // Create message object with validated content
+        // Create message object with sanitized content
         const messageObj = {
           user: user.username,
-          text: trimmedMessage,
+          text: sanitizedMessage,
           createdAt: new Date().toISOString()
         };
 
