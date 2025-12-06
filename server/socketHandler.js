@@ -7,6 +7,102 @@ const {
   isRoomActive
 } = require('./utils/userManager');
 
+// ==================== RATE LIMITING ====================
+// Rate limiting configuration
+const RATE_LIMITS = {
+  message: {
+    maxRequests: 10,      // Maximum 10 messages
+    windowMs: 10000,      // Per 10 seconds
+    blockDurationMs: 30000 // Block for 30 seconds if exceeded
+  },
+  join: {
+    maxRequests: 3,       // Maximum 3 join attempts
+    windowMs: 60000,      // Per 60 seconds (1 minute)
+    blockDurationMs: 60000 // Block for 60 seconds if exceeded
+  }
+};
+
+// Store rate limit data for each socket
+// Structure: Map<socketId, Map<actionType, { count, resetTime, blockedUntil }>>
+const rateLimitStore = new Map();
+
+/**
+ * Check if action is rate limited
+ * @param {string} socketId - Socket ID
+ * @param {string} actionType - Type of action ('message', 'join')
+ * @returns {Object} - { allowed: boolean, error?: string, retryAfter?: number }
+ */
+const checkRateLimit = (socketId, actionType) => {
+  const now = Date.now();
+  const config = RATE_LIMITS[actionType];
+  
+  if (!config) {
+    return { allowed: true };
+  }
+  
+  // Get or initialize rate limit data for this socket
+  if (!rateLimitStore.has(socketId)) {
+    rateLimitStore.set(socketId, new Map());
+  }
+  
+  const socketLimits = rateLimitStore.get(socketId);
+  
+  // Get or initialize rate limit data for this action
+  if (!socketLimits.has(actionType)) {
+    socketLimits.set(actionType, {
+      count: 0,
+      resetTime: now + config.windowMs,
+      blockedUntil: 0
+    });
+  }
+  
+  const limitData = socketLimits.get(actionType);
+  
+  // Check if currently blocked
+  if (limitData.blockedUntil > now) {
+    const retryAfter = Math.ceil((limitData.blockedUntil - now) / 1000);
+    return {
+      allowed: false,
+      error: `Too many ${actionType} requests. Please try again in ${retryAfter} seconds.`,
+      retryAfter
+    };
+  }
+  
+  // Reset counter if time window has passed
+  if (now > limitData.resetTime) {
+    limitData.count = 0;
+    limitData.resetTime = now + config.windowMs;
+    limitData.blockedUntil = 0;
+  }
+  
+  // Check if limit exceeded
+  if (limitData.count >= config.maxRequests) {
+    limitData.blockedUntil = now + config.blockDurationMs;
+    const retryAfter = Math.ceil(config.blockDurationMs / 1000);
+    console.log(`🚫 Rate limit exceeded for ${socketId} on ${actionType}`);
+    return {
+      allowed: false,
+      error: `Rate limit exceeded. Please wait ${retryAfter} seconds before trying again.`,
+      retryAfter
+    };
+  }
+  
+  // Increment counter
+  limitData.count++;
+  
+  return { allowed: true };
+};
+
+/**
+ * Clean up rate limit data when socket disconnects
+ * @param {string} socketId - Socket ID
+ */
+const cleanupRateLimit = (socketId) => {
+  rateLimitStore.delete(socketId);
+};
+
+// ==================== END RATE LIMITING ====================
+
 const setupSocketHandlers = (io) => {
   // Handle new connections
   io.on('connection', (socket) => {
@@ -15,6 +111,13 @@ const setupSocketHandlers = (io) => {
     // Handle user joining a room
     socket.on('join', ({ username, room }, callback) => {
       try {
+        // Check rate limit for join action
+        const rateLimitCheck = checkRateLimit(socket.id, 'join');
+        if (!rateLimitCheck.allowed) {
+          if (callback) callback({ error: rateLimitCheck.error });
+          return;
+        }
+        
         // Validate inputs
         if (!username || !room) {
           if (callback) callback({ error: 'Username and room are required' });
@@ -78,6 +181,13 @@ const setupSocketHandlers = (io) => {
     // Handle messages
     socket.on('sendMessage', (message, callback) => {
       try {
+        // Check rate limit for message action
+        const rateLimitCheck = checkRateLimit(socket.id, 'message');
+        if (!rateLimitCheck.allowed) {
+          if (callback) callback({ error: rateLimitCheck.error });
+          return;
+        }
+        
         const user = getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
@@ -132,6 +242,10 @@ const setupSocketHandlers = (io) => {
     // Handle disconnects (browser close, etc.)
     socket.on('disconnect', () => {
       console.log(`Connection disconnected: ${socket.id}`);
+      
+      // Clean up rate limit data for this socket
+      cleanupRateLimit(socket.id);
+      
       const user = removeUser(socket.id);
       
       if (user) {
