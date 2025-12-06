@@ -5,6 +5,40 @@ const users = [];
 const rooms = new Map(); // To track all active rooms
 const ROOM_CLEANUP_DELAY = 30 * 60 * 1000; // 30 minutes in milliseconds
 
+// ==================== ROOM CAPACITY LIMITS ====================
+/**
+ * Room capacity configuration
+ * Different room types can have different limits
+ */
+const ROOM_CAPACITY = {
+  DEFAULT: 50,        // Default capacity for regular rooms
+  LOCATION: 100,      // Location-based rooms can have more users
+  MIN_CAPACITY: 2,    // Minimum users needed for a room
+  MAX_CAPACITY: 100   // Hard limit across all room types
+};
+
+/**
+ * Check if room has reached capacity
+ * @param {string} roomId - Room ID to check
+ * @returns {Object} - { isFull: boolean, current: number, limit: number }
+ */
+const checkRoomCapacity = (roomId) => {
+  const currentUsers = getUsersInRoom(roomId).length;
+  
+  // Determine capacity based on room type
+  const isLocationRoom = roomId.startsWith('LOC_');
+  const capacity = isLocationRoom ? ROOM_CAPACITY.LOCATION : ROOM_CAPACITY.DEFAULT;
+  
+  return {
+    isFull: currentUsers >= capacity,
+    current: currentUsers,
+    limit: capacity,
+    available: capacity - currentUsers
+  };
+};
+
+// ==================== END ROOM CAPACITY LIMITS ====================
+
 /**
  * Add a new user to the in-memory storage
  * @param {Object} userInfo - User information
@@ -23,6 +57,15 @@ const addUser = ({ id, username, room }) => {
   username = username.trim().toLowerCase();
   room = room.trim().toUpperCase();
   
+  // Check room capacity before adding user
+  const capacityCheck = checkRoomCapacity(room);
+  if (capacityCheck.isFull) {
+    console.log(`🚫 Room ${room} is full (${capacityCheck.current}/${capacityCheck.limit} users)`);
+    return { 
+      error: `Room is full! Maximum capacity: ${capacityCheck.limit} users. Please try another room.` 
+    };
+  }
+  
   // Check if username is already taken in the room
   const existingUser = users.find(user => user.room === room && user.username === username);
   if (existingUser) {
@@ -35,6 +78,10 @@ const addUser = ({ id, username, room }) => {
   
   // Track room activity
   trackRoom(room);
+  
+  // Log capacity info
+  const updatedCapacity = checkRoomCapacity(room);
+  console.log(`✅ User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)`);
   
   return { user };
 };
@@ -117,6 +164,25 @@ const getRoomCount = (room) => {
 };
 
 /**
+ * Get room info including capacity
+ * @param {string} room - Room ID
+ * @returns {Object} - Room information with capacity details
+ */
+const getRoomInfo = (room) => {
+  const users = getUsersInRoom(room);
+  const capacity = checkRoomCapacity(room);
+  
+  return {
+    room,
+    userCount: users.length,
+    users,
+    capacity: capacity.limit,
+    available: capacity.available,
+    isFull: capacity.isFull
+  };
+};
+
+/**
  * Get list of all active rooms
  * @returns {Array} - Array of room IDs with user counts
  */
@@ -192,7 +258,10 @@ module.exports = {
   getUser,
   getUsersInRoom,
   getRoomCount,
+  getRoomInfo,
+  checkRoomCapacity,
   isRoomActive,
   getActiveRoomIds,
-  cleanupAllTimers
+  cleanupAllTimers,
+  ROOM_CAPACITY
 };

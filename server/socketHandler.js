@@ -4,7 +4,10 @@ const {
   getUser, 
   getUsersInRoom,
   getRoomCount,
-  isRoomActive
+  getRoomInfo,
+  checkRoomCapacity,
+  isRoomActive,
+  ROOM_CAPACITY
 } = require('./utils/userManager');
 
 // ==================== INPUT SANITIZATION ====================
@@ -287,10 +290,14 @@ const setupSocketHandlers = (io) => {
         // Notify clients about user joining (for toast notifications)
         socket.to(user.room).emit('userJoined', user.username);
 
-        // Send updated room data to all users in the room
+        // Send updated room data to all users in the room (including capacity info)
+        const roomInfo = getRoomInfo(user.room);
         io.to(user.room).emit('roomData', {
           room: user.room,
-          users: getUsersInRoom(user.room)
+          users: getUsersInRoom(user.room),
+          capacity: roomInfo.capacity,
+          available: roomInfo.available,
+          isFull: roomInfo.isFull
         });
 
         if (callback) callback();
@@ -304,6 +311,30 @@ const setupSocketHandlers = (io) => {
     socket.on('checkRoomAvailability', (roomId, callback) => {
       const isActive = isRoomActive(roomId);
       callback({ isActive });
+    });
+    
+    // Handle room capacity check
+    socket.on('checkRoomCapacity', (roomId, callback) => {
+      try {
+        if (!roomId || typeof roomId !== 'string') {
+          return callback({ error: 'Invalid room ID' });
+        }
+        
+        const capacityInfo = checkRoomCapacity(roomId);
+        const roomInfo = getRoomInfo(roomId);
+        
+        callback({ 
+          success: true,
+          capacity: capacityInfo.limit,
+          current: capacityInfo.current,
+          available: capacityInfo.available,
+          isFull: capacityInfo.isFull,
+          users: roomInfo.users.map(u => u.username) // Don't send socket IDs
+        });
+      } catch (error) {
+        console.error('Error checking room capacity:', error);
+        callback({ error: 'Failed to check room capacity' });
+      }
     });
     
     // Handle messages
@@ -403,10 +434,14 @@ const setupSocketHandlers = (io) => {
     // Notify for toast
     socket.to(user.room).emit('userLeft', user.username);
 
-    // Send updated room data
+    // Send updated room data (including capacity info)
+    const roomInfo = getRoomInfo(user.room);
     io.to(user.room).emit('roomData', {
       room: user.room,
-      users: getUsersInRoom(user.room)
+      users: getUsersInRoom(user.room),
+      capacity: roomInfo.capacity,
+      available: roomInfo.available,
+      isFull: roomInfo.isFull
     });
 
     // If room is now empty, we could clean it up
