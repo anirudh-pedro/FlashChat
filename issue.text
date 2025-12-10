@@ -6,9 +6,9 @@ Fix socket reconnection logic XX
 Fix memory leaks in room cleanup XX
 Phase 2: Security (Next week)
 Add rate limiting XX
-Add input sanitization
-Add HTTPS enforcement
-Add room capacity limits
+Add input sanitization XX
+Add HTTPS enforcement XX
+Add room capacity limits XX
 Phase 3: UX Improvements (Next 2 weeks)
 Add connection status indicator
 Add typing indicators

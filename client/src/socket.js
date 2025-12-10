@@ -1,9 +1,23 @@
 import { io } from 'socket.io-client';
 
 // Default to localhost for development
-const ENDPOINT = process.env.NODE_ENV === 'production'
-  ? 'https://flashchat-oyd6.onrender.com'
-  : 'http://localhost:5000';
+// Use VITE_API_URL if set, otherwise detect based on current location
+const getEndpoint = () => {
+  // If running on localhost/127.0.0.1, use local server
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  
+  // Otherwise use production server
+  return import.meta.env.VITE_API_URL || 'https://flashchat-oyd6.onrender.com';
+};
+
+const ENDPOINT = getEndpoint();
+
+console.log('🔌 Connecting to:', ENDPOINT);
 
 // Create a socket instance
 let socket;
@@ -22,7 +36,7 @@ export const initSocket = () => {
     reconnection: true,
     reconnectionAttempts: 5,
     reconnectionDelay: 1000,
-    timeout: 20000, // Increase timeout to 20 seconds
+    timeout: 30000, // Increase timeout to 30 seconds for slow servers
     autoConnect: true,
   });
   
