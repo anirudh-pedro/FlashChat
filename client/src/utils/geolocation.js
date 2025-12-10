@@ -51,16 +51,21 @@ export const getCurrentPosition = () => {
  * 
  * @param {number} latitude - User's latitude
  * @param {number} longitude - User's longitude
- * @param {number} precision - Decimal precision (default: 1 ≈ 11km precision)
  * @returns {string} - Area identifier string
  */
-export const getAreaIdentifier = (latitude, longitude, precision = 1) => {
-  // Round coordinates to reduce precision (for privacy and grouping)
-  const roundedLat = Math.round(latitude * Math.pow(10, precision)) / Math.pow(10, precision);
-  const roundedLong = Math.round(longitude * Math.pow(10, precision)) / Math.pow(10, precision);
+export const getAreaIdentifier = (latitude, longitude) => {
+  // Use 0.2 degree grid (~22km cells at equator, ensures devices within 15km join same room)
+  // Round to nearest 0.2: divide by 0.2, round, multiply by 0.2
+  const gridSize = 0.2;
+  const roundedLat = Math.round(latitude / gridSize) * gridSize;
+  const roundedLong = Math.round(longitude / gridSize) * gridSize;
+  
+  // Format to 1 decimal place to avoid floating point precision issues
+  const latStr = roundedLat.toFixed(1);
+  const longStr = roundedLong.toFixed(1);
   
   // Create location-based room ID with uppercase prefix
-  return `LOC_${roundedLat}_${roundedLong}`;
+  return `LOC_${latStr}_${longStr}`;
 };
 
 /**
