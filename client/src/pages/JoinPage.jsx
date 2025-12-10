@@ -140,7 +140,7 @@ const JoinPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 relative overflow-hidden">
+    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-3 sm:p-4 relative overflow-hidden">
       {/* Animated background elements */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <div className="absolute -top-40 -right-40 w-80 h-80 bg-white/5 rounded-full filter blur-3xl animate-blob"></div>
@@ -148,16 +148,16 @@ const JoinPage = () => {
         <div className="absolute top-1/2 left-1/2 transform -translate-x-1/2 -translate-y-1/2 w-80 h-80 bg-white/5 rounded-full filter blur-3xl animate-blob animation-delay-4000"></div>
         
         {/* Floating letters */}
-        <div className="absolute top-[10%] left-[15%] text-white/5 text-6xl font-bold animate-float">F</div>
-        <div className="absolute top-[20%] right-[20%] text-white/5 text-5xl font-bold animate-float animation-delay-1000">L</div>
-        <div className="absolute top-[60%] left-[10%] text-white/5 text-7xl font-bold animate-float animation-delay-2000">A</div>
-        <div className="absolute top-[70%] right-[15%] text-white/5 text-6xl font-bold animate-float animation-delay-3000">S</div>
-        <div className="absolute top-[40%] right-[40%] text-white/5 text-5xl font-bold animate-float animation-delay-4000">H</div>
-        <div className="absolute bottom-[20%] left-[40%] text-white/5 text-6xl font-bold animate-float animation-delay-5000">C</div>
+        <div className="hidden sm:block absolute top-[10%] left-[15%] text-white/5 text-6xl font-bold animate-float">F</div>
+        <div className="hidden sm:block absolute top-[20%] right-[20%] text-white/5 text-5xl font-bold animate-float animation-delay-1000">L</div>
+        <div className="hidden sm:block absolute top-[60%] left-[10%] text-white/5 text-7xl font-bold animate-float animation-delay-2000">A</div>
+        <div className="hidden sm:block absolute top-[70%] right-[15%] text-white/5 text-6xl font-bold animate-float animation-delay-3000">S</div>
+        <div className="hidden sm:block absolute top-[40%] right-[40%] text-white/5 text-5xl font-bold animate-float animation-delay-4000">H</div>
+        <div className="hidden sm:block absolute bottom-[20%] left-[40%] text-white/5 text-6xl font-bold animate-float animation-delay-5000">C</div>
       </div>
 
       <div className="w-full max-w-6xl mx-auto relative z-10">
-        <div className="grid lg:grid-cols-2 gap-8 items-center">
+        <div className="grid lg:grid-cols-2 gap-6 lg:gap-8 items-center">
           {/* Left side - Branding */}
           <div className="hidden lg:block text-white space-y-6">
             <div className="inline-block">
@@ -213,38 +213,38 @@ const JoinPage = () => {
           {/* Right side - Join Form */}
           <div className="w-full">
             {/* Mobile header */}
-            <div className="lg:hidden text-center mb-8">
-              <div className="inline-flex items-center gap-3 mb-3">
+            <div className="lg:hidden text-center mb-6">
+              <div className="inline-flex items-center gap-2 sm:gap-3 mb-3">
                 <div className="w-10 h-10 bg-white rounded-xl flex items-center justify-center shadow-lg shadow-white/20">
                   <FaBolt className="text-xl text-neutral-950" />
                 </div>
-                <h1 className="text-4xl font-bold text-white tracking-tight">
+                <h1 className="text-3xl sm:text-4xl font-bold text-white tracking-tight">
                   FlashChat
                 </h1>
               </div>
-              <p className="text-gray-400 text-sm">Connect instantly with real-time messaging</p>
+              <p className="text-gray-400 text-xs sm:text-sm">Connect instantly with real-time messaging</p>
             </div>
 
-            <div className="bg-neutral-900 rounded-2xl shadow-2xl border border-neutral-800 p-8 relative overflow-hidden">
+            <div className="bg-neutral-900 rounded-xl sm:rounded-2xl shadow-2xl border border-neutral-800 p-5 sm:p-8 relative overflow-hidden">
               {/* Animated shining overlay */}
               <div className="absolute inset-0 bg-gradient-to-br from-white/0 via-white/5 to-white/0 pointer-events-none animate-shine"></div>
               
               <div className="relative z-10">
-                <div className="text-center mb-6">
-                  <h2 className="text-2xl font-bold text-white mb-2">Get Started</h2>
-                  <p className="text-gray-400 text-sm">Choose how you'd like to connect</p>
+                <div className="text-center mb-5 sm:mb-6">
+                  <h2 className="text-xl sm:text-2xl font-bold text-white mb-2">Get Started</h2>
+                  <p className="text-gray-400 text-xs sm:text-sm">Choose how you'd like to connect</p>
                 </div>
 
                 {error && (
-                  <div className="mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-4 animate-shake">
-                    <div className="whitespace-pre-line text-red-300 text-sm leading-relaxed">{error}</div>
+                  <div className="mb-5 sm:mb-6 bg-red-500/10 border border-red-500/30 rounded-xl p-3 sm:p-4 animate-shake">
+                    <div className="whitespace-pre-line text-red-300 text-xs sm:text-sm leading-relaxed">{error}</div>
                   </div>
                 )}
                 
-                <form onSubmit={handleSubmit} className="space-y-6">
+                <form onSubmit={handleSubmit} className="space-y-5 sm:space-y-6">
                   {/* Username Input */}
                   <div className="space-y-2">
-                    <label htmlFor="username" className="block text-sm font-medium text-gray-300">
+                    <label htmlFor="username" className="block text-xs sm:text-sm font-medium text-gray-300">
                       Your Name
                     </label>
                     <input
@@ -254,34 +254,35 @@ const JoinPage = () => {
                       onChange={(e) => setUsername(e.target.value)}
                       placeholder="Enter your display name"
                       maxLength={20}
-                      className="w-full px-4 py-3 bg-neutral-950 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-all"
+                      className="w-full px-3 sm:px-4 py-2.5 sm:py-3 bg-neutral-950 border border-neutral-700 rounded-xl text-white text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-all"
                       required
                     />
                     <p className="text-xs text-gray-500">This is how others will see you</p>
                   </div>
 
                   {/* Join Method Tabs */}
-                  <div className="space-y-4">
-                    <label className="block text-sm font-medium text-gray-300 mb-3">
+                  <div className="space-y-3 sm:space-y-4">
+                    <label className="block text-xs sm:text-sm font-medium text-gray-300 mb-2 sm:mb-3">
                       Join Method
                     </label>
-                    <div className="grid grid-cols-2 gap-3 p-1 bg-neutral-950 rounded-xl border border-neutral-800">
+                    <div className="grid grid-cols-2 gap-2 sm:gap-3 p-1 bg-neutral-950 rounded-xl border border-neutral-800">
                       <button
                         type="button"
                         onClick={() => setJoinMethod('roomId')}
-                        className={`py-3 px-4 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 ${
                           joinMethod === 'roomId'
                             ? 'bg-white text-neutral-950 shadow-lg shadow-white/30 font-semibold'
                             : 'text-gray-400 hover:text-white hover:bg-neutral-800'
                         }`}
                       >
                         <FaKey className="text-xs" />
-                        Private Room
+                        <span className="hidden xs:inline">Private Room</span>
+                        <span className="xs:hidden">Private</span>
                       </button>
                       <button
                         type="button"
                         onClick={() => setJoinMethod('location')}
-                        className={`py-3 px-4 rounded-lg font-medium text-sm transition-all duration-200 flex items-center justify-center gap-2 ${
+                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 ${
                           joinMethod === 'location'
                             ? 'bg-white text-neutral-950 shadow-lg shadow-white/30 font-semibold'
                             : 'text-gray-400 hover:text-white hover:bg-neutral-800'
@@ -293,9 +294,9 @@ const JoinPage = () => {
                     </div>
 
                     {/* Method-specific content */}
-                    <div className="min-h-[140px]">
+                    <div className="min-h-[120px] sm:min-h-[140px]">
                       {joinMethod === 'roomId' ? (
-                        <div className="space-y-3 animate-fadeIn">
+                        <div className="space-y-2.5 sm:space-y-3 animate-fadeIn">
                           <div className="flex gap-2">
                             <input
                               type="text"
@@ -303,32 +304,32 @@ const JoinPage = () => {
                               value={roomId}
                               onChange={(e) => setRoomId(e.target.value.toUpperCase())}
                               placeholder="Enter or generate Room ID"
-                              className="flex-1 px-4 py-3 bg-neutral-950 border border-neutral-700 rounded-xl text-white placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-all font-mono text-lg tracking-wider"
+                              className="flex-1 px-3 sm:px-4 py-2.5 sm:py-3 bg-neutral-950 border border-neutral-700 rounded-xl text-white text-sm sm:text-base placeholder-gray-500 focus:outline-none focus:ring-2 focus:ring-white focus:border-transparent transition-all font-mono tracking-wider"
                               required={joinMethod === 'roomId'}
                             />
                             <button 
                               type="button"
                               onClick={handleGenerateRandomRoomId}
                               disabled={isLoading}
-                              className="px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[52px]"
+                              className="px-3 sm:px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[48px] sm:min-w-[52px]"
                               title="Generate Random Room ID"
                             >
                               <FaRandom className={isLoading ? 'animate-spin' : ''} />
                             </button>
                           </div>
-                          <div className="bg-white/5 border border-white/20 rounded-lg p-3">
+                          <div className="bg-white/5 border border-white/20 rounded-lg p-2.5 sm:p-3">
                             <p className="text-xs text-gray-300 leading-relaxed">
                               <strong>Private Room:</strong> Create or join with a unique code. Share it with people you want to chat with.
                             </p>
                           </div>
                         </div>
                       ) : (
-                        <div className="space-y-3 animate-fadeIn">
-                          <div className="bg-white/5 border border-white/20 rounded-lg p-4">
-                            <div className="flex items-start gap-3">
-                              <FaMapMarkerAlt className="text-white/70 mt-0.5 flex-shrink-0" />
+                        <div className="space-y-2.5 sm:space-y-3 animate-fadeIn">
+                          <div className="bg-white/5 border border-white/20 rounded-lg p-3 sm:p-4">
+                            <div className="flex items-start gap-2.5 sm:gap-3">
+                              <FaMapMarkerAlt className="text-white/70 mt-0.5 flex-shrink-0 text-sm sm:text-base" />
                               <div>
-                                <p className="text-sm text-gray-200 font-medium mb-1">
+                                <p className="text-xs sm:text-sm text-gray-200 font-medium mb-1">
                                   Discover Nearby Chats
                                 </p>
                                 <p className="text-xs text-gray-300 leading-relaxed">
@@ -346,7 +347,7 @@ const JoinPage = () => {
                   <button 
                     type="submit" 
                     disabled={isLoading}
-                    className={`w-full py-4 px-6 bg-white hover:bg-gray-100 text-neutral-950 font-semibold rounded-xl shadow-lg shadow-white/20 hover:shadow-white/30 transition-all duration-200 flex items-center justify-center gap-2 relative overflow-hidden ${
+                    className={`w-full py-3.5 sm:py-4 px-5 sm:px-6 bg-white hover:bg-gray-100 text-neutral-950 font-semibold rounded-xl shadow-lg shadow-white/20 hover:shadow-white/30 transition-all duration-200 flex items-center justify-center gap-2 relative overflow-hidden text-sm sm:text-base ${
                       isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.02]'
                     }`}
                   >
@@ -383,7 +384,7 @@ const JoinPage = () => {
             </div>
 
             {/* Footer note */}
-            <p className="text-center text-gray-500 text-xs mt-6">
+            <p className="text-center text-gray-500 text-xs mt-4 sm:mt-6 px-2">
               No registration required • Completely anonymous • No data stored
             </p>
           </div>
