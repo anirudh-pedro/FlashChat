@@ -54,18 +54,14 @@ export const getCurrentPosition = () => {
  * @returns {string} - Area identifier string
  */
 export const getAreaIdentifier = (latitude, longitude) => {
-  // Use 0.2 degree grid (~22km cells at equator, ensures devices within 15km join same room)
-  // Round to nearest 0.2: divide by 0.2, round, multiply by 0.2
-  const gridSize = 0.2;
-  const roundedLat = Math.round(latitude / gridSize) * gridSize;
-  const roundedLong = Math.round(longitude / gridSize) * gridSize;
-  
-  // Format to 1 decimal place to avoid floating point precision issues
-  const latStr = roundedLat.toFixed(1);
-  const longStr = roundedLong.toFixed(1);
+  // Use 1.0 degree grid (~111km cells at equator)
+  // This ensures all devices within 15km radius definitely join the same room
+  // Floor to nearest integer degree for consistent grouping
+  const roundedLat = Math.floor(latitude);
+  const roundedLong = Math.floor(longitude);
   
   // Create location-based room ID with uppercase prefix
-  return `LOC_${latStr}_${longStr}`;
+  return `LOC_${roundedLat}_${roundedLong}`;
 };
 
 /**
