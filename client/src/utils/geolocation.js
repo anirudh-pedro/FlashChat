@@ -37,9 +37,11 @@ export const getCurrentPosition = () => {
         reject(new Error(errorMessage));
       },
       {
-        enableHighAccuracy: true,
-        timeout: 10000,
-        maximumAge: 0
+        // Favour faster, more available network-based location to avoid long waits/timeouts on mobile
+        enableHighAccuracy: false,
+        // Give GPS/network more time on mobile (30s) and allow cached location up to 60s for reliability
+        timeout: 30000,
+        maximumAge: 60000
       }
     );
   });
@@ -54,14 +56,17 @@ export const getCurrentPosition = () => {
  * @returns {string} - Area identifier string
  */
 export const getAreaIdentifier = (latitude, longitude) => {
-  // Use 1.0 degree grid (~111km cells at equator)
-  // This ensures all devices within 15km radius definitely join the same room
-  // Floor to nearest integer degree for consistent grouping
-  const roundedLat = Math.floor(latitude);
-  const roundedLong = Math.floor(longitude);
+  // Use ~0.25° grid (~27km across at equator) so devices within ~15km land in the same room
+  const gridSize = 0.25;
+  const roundedLat = Math.round(latitude / gridSize) * gridSize;
+  const roundedLong = Math.round(longitude / gridSize) * gridSize;
+
+  // Format to 2 decimals to avoid floating point artifacts (e.g., 10.5 instead of 10.499999)
+  const latStr = roundedLat.toFixed(2);
+  const longStr = roundedLong.toFixed(2);
   
   // Create location-based room ID with uppercase prefix
-  return `LOC_${roundedLat}_${roundedLong}`;
+  return `LOC_${latStr}_${longStr}`;
 };
 
 /**
