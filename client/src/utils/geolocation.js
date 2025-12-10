@@ -22,7 +22,7 @@ export const getCurrentPosition = () => {
         
         switch(error.code) {
           case error.PERMISSION_DENIED:
-            errorMessage = 'Location access was denied. Please enable location services to use this feature.';
+            errorMessage = 'Location access was denied. Please enable location services to use this feature';
             break;
           case error.POSITION_UNAVAILABLE:
             errorMessage = 'Location information is unavailable. Please try again later.';
