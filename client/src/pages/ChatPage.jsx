@@ -204,7 +204,7 @@ const ChatPage = () => {
   const isLocationBased = isLocationRoom(room);
 
   return (
-    <div className="flex flex-col h-screen max-h-screen w-screen overflow-hidden bg-neutral-950">
+    <div className="flex flex-col h-full w-full overflow-hidden bg-neutral-950">
       <ToastContainer 
         position="top-right" 
         autoClose={3000}
@@ -231,7 +231,7 @@ const ChatPage = () => {
       
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         {/* Main chat area */}
-        <div className={`flex-1 flex flex-col min-w-0 ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
+        <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
           <MessageList 
             messages={messages} 
             currentUser={username} 
