@@ -37,9 +37,8 @@ export const getCurrentPosition = () => {
         reject(new Error(errorMessage));
       },
       {
-        // Favour faster, more available network-based location to avoid long waits/timeouts on mobile
+        // Favor faster network-based location, but allow moderate timeout
         enableHighAccuracy: false,
-        // Give GPS/network more time on mobile (30s) and allow cached location up to 60s for reliability
         timeout: 30000,
         maximumAge: 60000
       }
@@ -55,15 +54,23 @@ export const getCurrentPosition = () => {
  * @param {number} longitude - User's longitude
  * @returns {string} - Area identifier string
  */
-export const getAreaIdentifier = (latitude, longitude) => {
-  // Use ~0.25° grid (~27km across at equator) so devices within ~15km land in the same room
-  const gridSize = 0.25;
+export const getAreaIdentifier = (latitude, longitude, accuracyMeters = null) => {
+  // Adaptive grid based on accuracy: keep close devices together even when accuracy is coarse
+  // accuracyMeters can be undefined; if poor (>20km) we widen the grid to avoid split rooms
+  let gridSize = 0.2; // ~22km across, ~11km radius
+  if (accuracyMeters && accuracyMeters > 20000) {
+    gridSize = 1.0; // very coarse accuracy, bucket to ~111km to keep users together
+  } else if (accuracyMeters && accuracyMeters > 10000) {
+    gridSize = 0.5; // ~55km across, ~27km radius
+  }
+
   const roundedLat = Math.round(latitude / gridSize) * gridSize;
   const roundedLong = Math.round(longitude / gridSize) * gridSize;
 
-  // Format to 2 decimals to avoid floating point artifacts (e.g., 10.5 instead of 10.499999)
-  const latStr = roundedLat.toFixed(2);
-  const longStr = roundedLong.toFixed(2);
+  // Choose decimal places based on grid size for stable strings
+  const decimals = gridSize >= 1 ? 0 : gridSize >= 0.5 ? 1 : 2;
+  const latStr = roundedLat.toFixed(decimals);
+  const longStr = roundedLong.toFixed(decimals);
   
   // Create location-based room ID with uppercase prefix
   return `LOC_${latStr}_${longStr}`;
@@ -76,7 +83,7 @@ export const getAreaIdentifier = (latitude, longitude) => {
 export const getLocationBasedRoom = async () => {
   try {
     const position = await getCurrentPosition();
-    return getAreaIdentifier(position.latitude, position.longitude);
+    return getAreaIdentifier(position.latitude, position.longitude, position.accuracy);
   } catch (error) {
     throw error;
   }
