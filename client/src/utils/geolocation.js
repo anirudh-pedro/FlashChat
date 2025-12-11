@@ -54,23 +54,16 @@ export const getCurrentPosition = () => {
  * @param {number} longitude - User's longitude
  * @returns {string} - Area identifier string
  */
-export const getAreaIdentifier = (latitude, longitude, accuracyMeters = null) => {
-  // Adaptive grid based on accuracy: keep close devices together even when accuracy is coarse
-  // accuracyMeters can be undefined; if poor (>20km) we widen the grid to avoid split rooms
-  let gridSize = 0.2; // ~22km across, ~11km radius
-  if (accuracyMeters && accuracyMeters > 20000) {
-    gridSize = 1.0; // very coarse accuracy, bucket to ~111km to keep users together
-  } else if (accuracyMeters && accuracyMeters > 10000) {
-    gridSize = 0.5; // ~55km across, ~27km radius
-  }
-
+export const getAreaIdentifier = (latitude, longitude) => {
+  // Fixed 0.3° grid (~33km across) so any devices within ~15km land in the same room
+  // Using a fixed grid avoids boundary jumps from varying accuracy across devices
+  const gridSize = 0.3;
   const roundedLat = Math.round(latitude / gridSize) * gridSize;
   const roundedLong = Math.round(longitude / gridSize) * gridSize;
 
-  // Choose decimal places based on grid size for stable strings
-  const decimals = gridSize >= 1 ? 0 : gridSize >= 0.5 ? 1 : 2;
-  const latStr = roundedLat.toFixed(decimals);
-  const longStr = roundedLong.toFixed(decimals);
+  // Stable string formatting to prevent floating artifacts
+  const latStr = roundedLat.toFixed(2);
+  const longStr = roundedLong.toFixed(2);
   
   // Create location-based room ID with uppercase prefix
   return `LOC_${latStr}_${longStr}`;
@@ -83,7 +76,7 @@ export const getAreaIdentifier = (latitude, longitude, accuracyMeters = null) =>
 export const getLocationBasedRoom = async () => {
   try {
     const position = await getCurrentPosition();
-    return getAreaIdentifier(position.latitude, position.longitude, position.accuracy);
+    return getAreaIdentifier(position.latitude, position.longitude);
   } catch (error) {
     throw error;
   }
