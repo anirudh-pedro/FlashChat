@@ -184,7 +184,7 @@ const ChatPage = () => {
   const isLocationBased = isLocationRoom(room);
 
   return (
-    <div className="flex flex-col h-screen w-screen overflow-hidden bg-gray-900">
+    <div className="flex flex-col h-screen w-screen overflow-hidden bg-neutral-950">
       <ToastContainer 
         position="top-right" 
         autoClose={3000}
@@ -196,6 +196,7 @@ const ChatPage = () => {
         draggable
         pauseOnHover
         theme="dark"
+        toastClassName="!bg-neutral-900 !text-white !border !border-neutral-800"
       />
       
       <ChatHeader 
@@ -209,7 +210,8 @@ const ChatPage = () => {
       />
       
       <div className="flex flex-1 overflow-hidden relative">
-        <div className={`flex-1 flex flex-col ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
+        {/* Main chat area */}
+        <div className={`flex-1 flex flex-col min-w-0 ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
           <MessageList 
             messages={messages} 
             currentUser={username} 
@@ -220,8 +222,9 @@ const ChatPage = () => {
           />
         </div>
         
+        {/* Users sidebar */}
         {showUsersList && (
-          <div className="absolute sm:relative w-full sm:w-auto right-0 top-0 h-full">
+          <div className="absolute sm:relative w-full sm:w-auto right-0 top-0 h-full z-20">
             <UsersList 
               users={users} 
               currentUser={username} 

@@ -59,25 +59,24 @@ const ChatInput = ({ onSendMessage }) => {
   const isOverLimit = messageLength > MAX_MESSAGE_LENGTH;
 
   return (
-    <div className="bg-gray-800 border-t border-gray-700 p-3 relative">
+    <div className="bg-neutral-900 border-t border-neutral-800 px-4 md:px-6 py-4 relative">
       {isNearLimit && (
-        <div className={`text-xs text-right pb-1 ${isOverLimit ? 'text-red-400' : 'text-yellow-400'}`}>
+        <div className={`text-xs text-right pb-2 ${isOverLimit ? 'text-red-400' : 'text-yellow-400'}`}>
           {messageLength}/{MAX_MESSAGE_LENGTH} characters
         </div>
       )}
       {showEmojiPicker && (
         <div 
           ref={emojiPickerRef}
-          className="absolute bottom-full right-0 left-0 mb-2 z-10 max-h-[60vh]"
-          style={{maxWidth: "100%"}}
+          className="absolute bottom-full right-4 left-4 md:right-6 md:left-6 mb-2 z-10 max-h-[60vh]"
         >
-          <div className="emoji-picker-container w-full mx-auto" 
-               style={{maxWidth: "350px", boxShadow: "0 8px 24px rgba(0,0,0,0.4)"}}>
-            <div className="bg-gray-700 p-2 rounded-t-lg flex justify-between items-center">
-              <span className="text-white text-sm font-medium pl-1">Emojis</span>
+          <div className="emoji-picker-container w-full mx-auto max-w-md rounded-lg overflow-hidden" 
+               style={{boxShadow: "0 8px 24px rgba(0,0,0,0.4)"}}>
+            <div className="bg-neutral-800 p-3 flex justify-between items-center">
+              <span className="text-white text-sm font-semibold">Emojis</span>
               <button 
                 onClick={() => setShowEmojiPicker(false)}
-                className="p-1.5 text-gray-300 hover:bg-gray-600 rounded-full"
+                className="p-1.5 text-gray-300 hover:bg-neutral-700 rounded-lg transition-colors"
                 aria-label="Close emoji picker"
               >
                 <FaTimes size={16} />
@@ -131,38 +130,40 @@ const ChatInput = ({ onSendMessage }) => {
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="flex items-center">
+      <form onSubmit={handleSubmit} className="flex items-center gap-3 max-w-5xl mx-auto">
         <button 
           type="button"
           ref={emojiButtonRef}
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2 rounded-full text-gray-300 hover:bg-gray-700 transition-colors mr-2"
+          className="p-2.5 md:p-3 rounded-xl text-gray-300 hover:bg-neutral-800 transition-colors flex-shrink-0"
           aria-label="Insert emoji"
         >
           <FaSmile size={20} />
         </button>
         
-        <input
-          type="text"
-          ref={inputRef}
-          value={message}
-          onChange={(e) => setMessage(e.target.value)}
-          placeholder="Type a message..."
-          maxLength={MAX_MESSAGE_LENGTH}
-          className="flex-1 py-2.5 px-4 text-sm bg-gray-700 text-white rounded-full focus:outline-none focus:ring-2 focus:ring-indigo-500 placeholder-gray-400"
-        />
+        <div className="flex-1 relative">
+          <input
+            type="text"
+            ref={inputRef}
+            value={message}
+            onChange={(e) => setMessage(e.target.value)}
+            placeholder="Type a message..."
+            maxLength={MAX_MESSAGE_LENGTH}
+            className="w-full py-3 md:py-3.5 px-4 md:px-5 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all"
+          />
+        </div>
         
         <button
           type="submit"
           disabled={!message.trim()}
-          className={`ml-2 p-2.5 rounded-full ${
+          className={`p-3 md:p-3.5 rounded-xl flex-shrink-0 transition-all ${
             message.trim() 
-              ? 'bg-indigo-600 text-white hover:bg-indigo-700' 
-              : 'bg-gray-700 text-gray-500 cursor-not-allowed'
-          } transition-colors`}
+              ? 'bg-white text-neutral-950 hover:bg-gray-100 hover:scale-105 shadow-lg' 
+              : 'bg-neutral-800 text-gray-500 cursor-not-allowed'
+          }`}
           aria-label="Send message"
         >
-          <FaPaperPlane size={16} />
+          <FaPaperPlane size={18} />
         </button>
       </form>
     </div>

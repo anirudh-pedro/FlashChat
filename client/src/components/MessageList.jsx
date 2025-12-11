@@ -41,18 +41,20 @@ const MessageList = ({ messages, currentUser }) => {
   const groupedMessages = groupMessagesByDate();
 
   return (
-    <div className="flex-1 overflow-y-auto p-2 sm:p-3 md:p-4 space-y-2 sm:space-y-3 bg-gray-900">
+    <div className="flex-1 overflow-y-auto px-4 py-4 md:px-6 md:py-6 space-y-3 md:space-y-4 bg-neutral-950">
       {messages.length === 0 ? (
         <div className="flex flex-col items-center justify-center h-full text-gray-400">
-          <div className="text-4xl sm:text-5xl mb-3 md:mb-4">💬</div>
-          <p className="text-base sm:text-lg font-medium">No messages yet</p>
-          <p className="text-xs sm:text-sm">Be the first to send a message!</p>
+          <div className="w-16 h-16 bg-neutral-900 rounded-full flex items-center justify-center mb-4">
+            <div className="text-3xl">💬</div>
+          </div>
+          <p className="text-lg font-semibold text-white mb-1">No messages yet</p>
+          <p className="text-sm text-gray-500">Start the conversation!</p>
         </div>
       ) : (
         groupedMessages.map((item, index) => (
           item.type === 'date' ? (
-            <div key={`date-${index}`} className="flex justify-center my-3 md:my-4">
-              <div className="bg-gray-800 text-gray-300 text-xs px-2 sm:px-3 py-0.5 sm:py-1 rounded-full">
+            <div key={`date-${index}`} className="flex justify-center my-6">
+              <div className="bg-neutral-900 text-gray-400 text-xs font-medium px-4 py-1.5 rounded-full border border-neutral-800">
                 {item.date === new Date().toLocaleDateString() ? 'Today' : item.date}
               </div>
             </div>

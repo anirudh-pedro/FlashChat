@@ -18,33 +18,45 @@ const Message = ({ message, isOwnMessage }) => {
 
   return (
     <div 
-      className={`flex ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+      className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
     >
-      <div 
-        className={`max-w-[85%] sm:max-w-[75%] rounded-2xl px-3 sm:px-4 py-2 ${
-          isOwnMessage 
-            ? 'bg-indigo-600 text-white rounded-br-none' 
-            : 'bg-gray-800 text-gray-100 border border-gray-700 rounded-bl-none'
-        } ${isSingleEmoji(text) ? 'px-4 py-2.5' : ''}`}
-      >
+      {/* Avatar for received messages */}
+      {!isOwnMessage && (
+        <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 font-semibold text-neutral-950 text-sm">
+          {user.charAt(0).toUpperCase()}
+        </div>
+      )}
+      
+      <div className="flex flex-col max-w-[75%] sm:max-w-[65%] md:max-w-[60%]">
         {!isOwnMessage && (
-          <div className="font-medium text-xs text-indigo-300 mb-0.5 sm:mb-1">{user}</div>
+          <div className="font-medium text-xs text-gray-400 mb-1 ml-1">{user}</div>
         )}
         
-        <div className={`break-words message-text ${
-          isSingleEmoji(text) ? 'text-2xl sm:text-3xl' : 'text-sm'
-        }`}>
-          {text}
-        </div>
-        
         <div 
-          className={`text-[10px] sm:text-xs mt-1 text-right ${
-            isOwnMessage ? 'text-indigo-200' : 'text-gray-400'
-          }`}
+          className={`rounded-2xl px-4 py-2.5 ${
+            isOwnMessage 
+              ? 'bg-white text-neutral-950 rounded-br-md shadow-lg' 
+              : 'bg-neutral-900 text-gray-100 border border-neutral-800 rounded-bl-md'
+          } ${isSingleEmoji(text) ? 'px-5 py-3' : ''}`}
         >
-          {formatTime(createdAt)}
+          <div className={`break-words message-text ${
+            isSingleEmoji(text) ? 'text-3xl md:text-4xl' : 'text-sm md:text-base leading-relaxed'
+          }`}>
+            {text}
+          </div>
+          
+          <div 
+            className={`text-[10px] mt-1 ${
+              isOwnMessage ? 'text-neutral-600 text-right' : 'text-gray-500'
+            }`}
+          >
+            {formatTime(createdAt)}
+          </div>
         </div>
       </div>
+      
+      {/* Spacer for sent messages to keep alignment */}
+      {isOwnMessage && <div className="w-8 flex-shrink-0"></div>}
     </div>
   );
 };
