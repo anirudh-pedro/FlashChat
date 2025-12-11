@@ -20,7 +20,7 @@ const TypingIndicator = ({ typingUsers }) => {
   };
 
   return (
-    <div className="px-6 py-2 text-sm text-gray-400">
+    <div className="px-3 py-1.5 sm:px-4 sm:py-2 md:px-6 text-xs sm:text-sm text-gray-400 flex-shrink-0">
       <div className="flex items-center gap-2">
         <span>{getTypingText()}</span>
         <div className="flex gap-1">
