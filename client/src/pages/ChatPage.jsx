@@ -4,6 +4,7 @@ import ChatHeader from "../components/ChatHeader";
 import MessageList from "../components/MessageList";
 import ChatInput from "../components/ChatInput";
 import UsersList from "../components/UsersList";
+import TypingIndicator from "../components/TypingIndicator";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
 import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom } from "../socket";
@@ -16,6 +17,7 @@ const ChatPage = () => {
   const [users, setUsers] = useState([]);
   const [socket, setSocket] = useState(null);
   const [showUsersList, setShowUsersList] = useState(false);
+  const [typingUsers, setTypingUsers] = useState([]);
   
   const params = new URLSearchParams(location.search);
   const username = params.get("username");
@@ -106,6 +108,20 @@ const ChatPage = () => {
     const handleUserLeft = (username) => {
       toast.info(`${username} left the chat`);
     };
+
+    // Listen for typing indicators
+    const handleUserTyping = (username) => {
+      setTypingUsers((prev) => {
+        if (!prev.includes(username)) {
+          return [...prev, username];
+        }
+        return prev;
+      });
+    };
+
+    const handleUserStoppedTyping = (username) => {
+      setTypingUsers((prev) => prev.filter((user) => user !== username));
+    };
     
     // Handle reconnection - rejoin room automatically
     const handleReconnect = () => {
@@ -144,6 +160,8 @@ const ChatPage = () => {
     socket.on("roomData", handleRoomData);
     socket.on("userJoined", handleUserJoined);
     socket.on("userLeft", handleUserLeft);
+    socket.on("userTyping", handleUserTyping);
+    socket.on("userStoppedTyping", handleUserStoppedTyping);
     socket.on("connect", handleReconnect);
     socket.on("disconnect", handleDisconnect);
 
@@ -152,6 +170,8 @@ const ChatPage = () => {
       socket.off("roomData", handleRoomData);
       socket.off("userJoined", handleUserJoined);
       socket.off("userLeft", handleUserLeft);
+      socket.off("userTyping", handleUserTyping);
+      socket.off("userStoppedTyping", handleUserStoppedTyping);
       socket.off("connect", handleReconnect);
       socket.off("disconnect", handleDisconnect);
     };
@@ -216,6 +236,8 @@ const ChatPage = () => {
             messages={messages} 
             currentUser={username} 
           />
+          
+          <TypingIndicator typingUsers={typingUsers} />
           
           <ChatInput 
             onSendMessage={sendMessage} 

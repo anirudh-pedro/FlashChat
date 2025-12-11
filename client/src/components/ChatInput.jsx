@@ -1,6 +1,7 @@
 import React, { useState, useRef, useEffect } from "react";
 import { FaPaperPlane, FaSmile, FaTimes } from "react-icons/fa";
 import EmojiPicker from "emoji-picker-react";
+import { getSocket } from "../socket";
 
 const ChatInput = ({ onSendMessage }) => {
   const [message, setMessage] = useState("");
@@ -8,6 +9,8 @@ const ChatInput = ({ onSendMessage }) => {
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const inputRef = useRef(null);
+  const typingTimeoutRef = useRef(null);
+  const isTypingRef = useRef(false);
   const MAX_MESSAGE_LENGTH = 1000;
   
   useEffect(() => {
@@ -39,9 +42,57 @@ const ChatInput = ({ onSendMessage }) => {
       alert("Message is too long. Maximum 1000 characters allowed.");
       return;
     }
+
+    // Stop typing indicator when sending message
+    const socket = getSocket();
+    if (socket && isTypingRef.current) {
+      socket.emit("stopTyping");
+      isTypingRef.current = false;
+    }
+    
+    // Clear typing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+      typingTimeoutRef.current = null;
+    }
     
     onSendMessage(trimmedMessage);
     setMessage("");
+  };
+
+  const handleMessageChange = (e) => {
+    const newMessage = e.target.value;
+    setMessage(newMessage);
+
+    const socket = getSocket();
+    if (!socket) return;
+
+    // Emit typing event if not already typing
+    if (newMessage.trim() && !isTypingRef.current) {
+      socket.emit("typing");
+      isTypingRef.current = true;
+    }
+
+    // Clear existing timeout
+    if (typingTimeoutRef.current) {
+      clearTimeout(typingTimeoutRef.current);
+    }
+
+    // Set new timeout to stop typing after 2 seconds of inactivity
+    if (newMessage.trim()) {
+      typingTimeoutRef.current = setTimeout(() => {
+        if (isTypingRef.current) {
+          socket.emit("stopTyping");
+          isTypingRef.current = false;
+        }
+      }, 2000);
+    } else {
+      // If message is empty, stop typing immediately
+      if (isTypingRef.current) {
+        socket.emit("stopTyping");
+        isTypingRef.current = false;
+      }
+    }
   };
 
   const handleEmojiClick = (emojiObject) => {
@@ -146,7 +197,7 @@ const ChatInput = ({ onSendMessage }) => {
             type="text"
             ref={inputRef}
             value={message}
-            onChange={(e) => setMessage(e.target.value)}
+            onChange={handleMessageChange}
             placeholder="Type a message..."
             maxLength={MAX_MESSAGE_LENGTH}
             className="w-full py-3 md:py-3.5 px-4 md:px-5 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all"

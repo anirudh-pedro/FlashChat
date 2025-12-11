@@ -398,6 +398,32 @@ const setupSocketHandlers = (io) => {
       }
     });
     
+    // Handle typing indicator
+    socket.on('typing', () => {
+      try {
+        const user = getUser(socket.id);
+        if (user) {
+          // Broadcast to other users in the room (not to self)
+          socket.to(user.room).emit('userTyping', user.username);
+        }
+      } catch (error) {
+        console.error('Error in typing handler:', error);
+      }
+    });
+    
+    // Handle stop typing indicator
+    socket.on('stopTyping', () => {
+      try {
+        const user = getUser(socket.id);
+        if (user) {
+          // Broadcast to other users in the room (not to self)
+          socket.to(user.room).emit('userStoppedTyping', user.username);
+        }
+      } catch (error) {
+        console.error('Error in stopTyping handler:', error);
+      }
+    });
+    
     // Handle user explicitly leaving
     socket.on('leaveRoom', () => {
       const user = removeUser(socket.id);
