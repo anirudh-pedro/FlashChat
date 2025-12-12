@@ -1,17 +1,20 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaPaperPlane, FaSmile, FaTimes } from "react-icons/fa";
+import { FaPaperPlane, FaSmile, FaTimes, FaPaperclip, FaImage } from "react-icons/fa";
 import EmojiPicker from "emoji-picker-react";
 import { getSocket } from "../socket";
 
-const ChatInput = ({ onSendMessage }) => {
+const ChatInput = ({ onSendMessage, onSendFile }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const inputRef = useRef(null);
+  const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const MAX_MESSAGE_LENGTH = 1000;
+  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
   
   useEffect(() => {
     // Close emoji picker when clicking outside
@@ -105,6 +108,60 @@ const ChatInput = ({ onSendMessage }) => {
     }
   };
 
+  const handleFileSelect = async (e) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+
+    // Validate file size
+    if (file.size > MAX_FILE_SIZE) {
+      alert('File too large. Maximum size is 5MB.');
+      return;
+    }
+
+    // Validate file type
+    const allowedTypes = [
+      'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+      'application/pdf',
+      'text/plain',
+      'application/msword',
+      'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+    ];
+
+    if (!allowedTypes.includes(file.type)) {
+      alert('File type not allowed. Supported: images, PDF, text, Word documents.');
+      return;
+    }
+
+    setIsUploading(true);
+
+    try {
+      // Convert file to base64
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Send file via socket
+      onSendFile({
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        fileData: base64Data
+      });
+    } catch (error) {
+      console.error('Error reading file:', error);
+      alert('Failed to read file. Please try again.');
+    } finally {
+      setIsUploading(false);
+      // Reset file input
+      if (fileInputRef.current) {
+        fileInputRef.current.value = '';
+      }
+    }
+  };
+
   const messageLength = message.length;
   const isNearLimit = messageLength > 900;
   const isOverLimit = messageLength > MAX_MESSAGE_LENGTH;
@@ -182,6 +239,35 @@ const ChatInput = ({ onSendMessage }) => {
       )}
       
       <form onSubmit={handleSubmit} className="flex items-center gap-2 sm:gap-3 max-w-5xl mx-auto">
+        {/* Hidden file input */}
+        <input
+          type="file"
+          ref={fileInputRef}
+          onChange={handleFileSelect}
+          accept="image/*,.pdf,.txt,.doc,.docx"
+          className="hidden"
+        />
+        
+        {/* File attachment button */}
+        <button 
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          disabled={isUploading}
+          className={`p-2 sm:p-2.5 md:p-3 rounded-xl transition-colors flex-shrink-0 ${
+            isUploading 
+              ? 'text-gray-500 cursor-not-allowed' 
+              : 'text-gray-300 hover:bg-neutral-800'
+          }`}
+          aria-label="Attach file"
+          title="Attach file or image"
+        >
+          {isUploading ? (
+            <div className="w-[18px] h-[18px] sm:w-5 sm:h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" />
+          ) : (
+            <FaPaperclip size={18} className="sm:w-5 sm:h-5" />
+          )}
+        </button>
+
         <button 
           type="button"
           ref={emojiButtonRef}

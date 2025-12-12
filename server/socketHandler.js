@@ -397,6 +397,89 @@ const setupSocketHandlers = (io) => {
         if (callback) callback({ error: 'Failed to send message' });
       }
     });
+
+    // Handle file/image sharing
+    socket.on('sendFile', (fileData, callback) => {
+      try {
+        // Check rate limit for message action (files count as messages)
+        const rateLimitCheck = checkRateLimit(socket.id, 'message');
+        if (!rateLimitCheck.allowed) {
+          if (callback) callback({ error: rateLimitCheck.error });
+          return;
+        }
+        
+        const user = getUser(socket.id);
+        if (!user) {
+          if (callback) callback({ error: 'User not found' });
+          return;
+        }
+
+        // Validate file data structure
+        if (!fileData || typeof fileData !== 'object') {
+          if (callback) callback({ error: 'Invalid file data' });
+          return;
+        }
+
+        const { fileName, fileType, fileSize, fileData: base64Data } = fileData;
+
+        // Validate required fields
+        if (!fileName || !fileType || !base64Data) {
+          if (callback) callback({ error: 'Missing file information' });
+          return;
+        }
+
+        // Sanitize filename
+        const sanitizedFileName = fileName
+          .replace(/[^a-zA-Z0-9._-]/g, '_')
+          .substring(0, 100);
+
+        // Validate file size (max 5MB)
+        const maxFileSize = 5 * 1024 * 1024; // 5MB
+        if (fileSize > maxFileSize) {
+          if (callback) callback({ error: 'File too large. Maximum size is 5MB.' });
+          return;
+        }
+
+        // Validate file type (allow common image and document types)
+        const allowedTypes = [
+          'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
+          'application/pdf',
+          'text/plain',
+          'application/msword',
+          'application/vnd.openxmlformats-officedocument.wordprocessingml.document'
+        ];
+
+        if (!allowedTypes.includes(fileType)) {
+          if (callback) callback({ error: 'File type not allowed. Supported: images, PDF, text, Word documents.' });
+          return;
+        }
+
+        // Check if it's an image
+        const isImage = fileType.startsWith('image/');
+
+        // Create file message object
+        const fileMessage = {
+          user: user.username,
+          type: 'file',
+          fileName: sanitizedFileName,
+          fileType: fileType,
+          fileSize: fileSize,
+          fileData: base64Data,
+          isImage: isImage,
+          createdAt: new Date().toISOString()
+        };
+
+        // Send to everyone in the room including sender
+        io.to(user.room).emit('message', fileMessage);
+        
+        console.log(`📁 File shared by ${user.username}: ${sanitizedFileName} (${(fileSize / 1024).toFixed(1)}KB)`);
+        
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in sendFile handler:', error);
+        if (callback) callback({ error: 'Failed to send file' });
+      }
+    });
     
     // Handle typing indicator
     socket.on('typing', () => {

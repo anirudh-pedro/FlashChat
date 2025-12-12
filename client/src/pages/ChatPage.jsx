@@ -186,6 +186,15 @@ const ChatPage = () => {
     });
   };
 
+  const sendFile = (fileData) => {
+    const socketInstance = getSocket();
+    socketInstance.emit("sendFile", fileData, (response) => {
+      if (response && response.error) {
+        toast.error(response.error);
+      }
+    });
+  };
+
   const toggleUsersList = () => {
     setShowUsersList(!showUsersList);
   };
@@ -240,7 +249,8 @@ const ChatPage = () => {
           <TypingIndicator typingUsers={typingUsers} />
           
           <ChatInput 
-            onSendMessage={sendMessage} 
+            onSendMessage={sendMessage}
+            onSendFile={sendFile}
           />
         </div>
         
