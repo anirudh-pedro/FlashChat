@@ -38,7 +38,7 @@ const ChatHeader = ({
               {!isLocationBased && joinMethod !== "location" && (
                 <button 
                   onClick={onCopyRoomId}
-                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0"
+                  className="p-1.5 hover:bg-white/10 rounded-lg transition-colors flex-shrink-0 cursor-pointer"
                   title="Copy Room ID"
                   aria-label="Copy Room ID"
                 >

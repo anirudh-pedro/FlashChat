@@ -269,7 +269,7 @@ const JoinPage = () => {
                       <button
                         type="button"
                         onClick={() => setJoinMethod('roomId')}
-                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 ${
+                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                           joinMethod === 'roomId'
                             ? 'bg-white text-neutral-950 shadow-lg shadow-white/30 font-semibold'
                             : 'text-gray-400 hover:text-white hover:bg-neutral-800'
@@ -282,7 +282,7 @@ const JoinPage = () => {
                       <button
                         type="button"
                         onClick={() => setJoinMethod('location')}
-                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 ${
+                        className={`py-2.5 sm:py-3 px-3 sm:px-4 rounded-lg font-medium text-xs sm:text-sm transition-all duration-200 flex items-center justify-center gap-1.5 sm:gap-2 cursor-pointer ${
                           joinMethod === 'location'
                             ? 'bg-white text-neutral-950 shadow-lg shadow-white/30 font-semibold'
                             : 'text-gray-400 hover:text-white hover:bg-neutral-800'
@@ -311,7 +311,7 @@ const JoinPage = () => {
                               type="button"
                               onClick={handleGenerateRandomRoomId}
                               disabled={isLoading}
-                              className="px-3 sm:px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[48px] sm:min-w-[52px]"
+                              className="px-3 sm:px-4 bg-neutral-800 hover:bg-neutral-700 border border-neutral-700 rounded-xl text-white transition-all disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center min-w-[48px] sm:min-w-[52px] cursor-pointer"
                               title="Generate Random Room ID"
                             >
                               <FaRandom className={isLoading ? 'animate-spin' : ''} />
@@ -347,7 +347,7 @@ const JoinPage = () => {
                   <button 
                     type="submit" 
                     disabled={isLoading}
-                    className={`w-full py-3.5 sm:py-4 px-5 sm:px-6 bg-white hover:bg-gray-100 text-neutral-950 font-semibold rounded-xl shadow-lg shadow-white/20 hover:shadow-white/30 transition-all duration-200 flex items-center justify-center gap-2 relative overflow-hidden text-sm sm:text-base ${
+                    className={`w-full py-3.5 sm:py-4 px-5 sm:px-6 bg-white hover:bg-gray-100 text-neutral-950 font-semibold rounded-xl shadow-lg shadow-white/20 hover:shadow-white/30 transition-all duration-200 flex items-center justify-center gap-2 relative overflow-hidden text-sm sm:text-base cursor-pointer ${
                       isLoading ? 'opacity-70 cursor-not-allowed' : 'hover:scale-[1.02]'
                     }`}
                   >

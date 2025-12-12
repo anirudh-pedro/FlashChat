@@ -1,4 +1,4 @@
-import React, { useState, useRef } from "react";
+import React, { useState, useRef, useEffect } from "react";
 import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV } from "react-icons/fa";
 
 const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStartEdit, showUsername = true }) => {
@@ -9,6 +9,26 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
   const [showMobileMenu, setShowMobileMenu] = useState(false);
   const longPressTimer = useRef(null);
   const isLongPress = useRef(false);
+  const menuRef = useRef(null);
+
+  // Close menu when clicking outside
+  useEffect(() => {
+    const handleClickOutside = (event) => {
+      if (showMenu && menuRef.current && !menuRef.current.contains(event.target)) {
+        setShowMenu(false);
+      }
+    };
+
+    if (showMenu) {
+      document.addEventListener('mousedown', handleClickOutside);
+      document.addEventListener('touchstart', handleClickOutside);
+    }
+
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+      document.removeEventListener('touchstart', handleClickOutside);
+    };
+  }, [showMenu]);
   
   // Format time from timestamp
   const formatTime = (timestamp) => {
@@ -275,37 +295,36 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
           
           {/* Message actions menu for own messages - DESKTOP ONLY (hidden on mobile) */}
           {isOwnMessage && type !== 'file' && user !== 'System' && id && onStartEdit && onDeleteMessage && (
-            <div className={`hidden md:block absolute -left-10 top-1/2 -translate-y-1/2 transition-opacity z-10 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+            <div 
+              ref={menuRef}
+              className={`hidden md:block absolute -left-10 top-1/2 -translate-y-1/2 transition-opacity z-10 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}
+            >
               <div className="relative">
                 <button
-                  onClick={() => setShowMenu(!showMenu)}
-                  className="p-1.5 rounded-full hover:bg-neutral-800 text-gray-400 hover:text-white transition-colors"
+                  onClick={(e) => {
+                    e.stopPropagation();
+                    setShowMenu(!showMenu);
+                  }}
+                  className="p-1.5 rounded-full hover:bg-neutral-800 text-gray-400 hover:text-white transition-colors cursor-pointer"
                 >
                   <FaEllipsisV size={12} />
                 </button>
                 
                 {showMenu && (
-                  <>
-                    {/* Invisible backdrop to close menu on outside click */}
-                    <div 
-                      className="fixed inset-0 z-0" 
-                      onClick={() => setShowMenu(false)}
-                    />
-                    <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-neutral-800 rounded-lg shadow-xl border border-neutral-700 py-1 min-w-[100px] z-10">
-                      <button
-                        onClick={handleEdit}
-                        className="w-full px-3 py-2 text-left text-sm text-white hover:bg-neutral-700 flex items-center gap-2"
-                      >
-                        <FaEdit size={12} /> Edit
-                      </button>
-                      <button
-                        onClick={handleDeleteClick}
-                        className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-neutral-700 flex items-center gap-2"
-                      >
-                        <FaTrash size={12} /> Delete
-                      </button>
-                    </div>
-                  </>
+                  <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-neutral-800 rounded-lg shadow-xl border border-neutral-700 py-1 min-w-[100px] z-50">
+                    <button
+                      onClick={handleEdit}
+                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-neutral-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FaEdit size={12} /> Edit
+                    </button>
+                    <button
+                      onClick={handleDeleteClick}
+                      className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-neutral-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FaTrash size={12} /> Delete
+                    </button>
+                  </div>
                 )}
               </div>
             </div>

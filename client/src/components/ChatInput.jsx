@@ -220,7 +220,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
   const isOverLimit = messageLength > MAX_MESSAGE_LENGTH;
 
   return (
-    <div className="bg-neutral-900 border-t border-neutral-800 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
+    <div className="bg-neutral-900 border-t border-neutral-800 px-2 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
       {/* Editing indicator */}
       {editingMessage && (
         <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-neutral-800 max-w-5xl mx-auto">
@@ -312,7 +312,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="flex items-end gap-2 sm:gap-3 max-w-5xl mx-auto">
+      <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 md:gap-3 max-w-5xl mx-auto">
         {/* Hidden file input */}
         <input
           type="file"
@@ -327,7 +327,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
           type="button"
           onClick={() => fileInputRef.current?.click()}
           disabled={isUploading}
-          className={`p-2 sm:p-2.5 md:p-3 rounded-xl transition-colors flex-shrink-0 ${
+          className={`p-1.5 sm:p-2 md:p-2.5 rounded-lg sm:rounded-xl transition-colors flex-shrink-0 cursor-pointer flex items-center justify-center ${
             isUploading 
               ? 'text-gray-500 cursor-not-allowed' 
               : 'text-gray-300 hover:bg-neutral-800'
@@ -336,21 +336,21 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
           title="Attach file or image"
         >
           {isUploading ? (
-            <div className="w-[18px] h-[18px] sm:w-5 sm:h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" />
+            <div className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" />
           ) : (
-            <FaPaperclip size={18} className="sm:w-5 sm:h-5" />
+            <FaPaperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
           )}
         </button>
 
-        {/* Emoji button - hidden on mobile and tablets */}
+        {/* Emoji button - hidden on mobile, tablets, and small laptops */}
         <button 
           type="button"
           ref={emojiButtonRef}
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="hidden md:block p-2 md:p-3 rounded-xl text-gray-300 hover:bg-neutral-800 transition-colors flex-shrink-0"
+          className="hidden lg:block p-2 lg:p-3 rounded-xl text-gray-300 hover:bg-neutral-800 transition-colors flex-shrink-0 cursor-pointer"
           aria-label="Insert emoji"
         >
-          <FaSmile size={18} className="md:w-5 md:h-5" />
+          <FaSmile size={18} className="lg:w-5 lg:h-5" />
         </button>
         
         <div className="flex-1 relative min-w-0">
@@ -362,15 +362,15 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
             placeholder="Type a message..."
             maxLength={MAX_MESSAGE_LENGTH}
             rows={1}
-            className="w-full py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-5 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all resize-none overflow-y-auto leading-normal scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent"
-            style={{ minHeight: '40px', maxHeight: '120px' }}
+            className="w-full py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all resize-none overflow-y-auto leading-normal scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent"
+            style={{ minHeight: '38px', maxHeight: '120px' }}
           />
         </div>
         
         <button
           type="submit"
           disabled={!message.trim()}
-          className={`p-2 sm:p-2.5 md:p-3.5 rounded-xl flex-shrink-0 transition-all self-end ${
+          className={`p-1.5 sm:p-2 md:p-2.5 rounded-lg sm:rounded-xl flex-shrink-0 transition-all self-end cursor-pointer flex items-center justify-center ${
             message.trim() 
               ? editingMessage
                 ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105 shadow-lg'
@@ -381,9 +381,9 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
           title={editingMessage ? "Save changes" : "Send message"}
         >
           {editingMessage ? (
-            <FaPen size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <FaPen className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
           ) : (
-            <FaPaperPlane size={16} className="sm:w-[18px] sm:h-[18px]" />
+            <FaPaperPlane className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
           )}
         </button>
       </form>

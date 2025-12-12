@@ -30,9 +30,14 @@ body {
   }
 }
 
-/* Prevent text selection on buttons */
+/* Prevent text selection on buttons and add cursor */
 button {
   user-select: none;
+  cursor: pointer;
+}
+
+button:disabled {
+  cursor: not-allowed;
 }
 
 /* Custom scrollbar */
@@ -101,12 +106,9 @@ textarea::-webkit-scrollbar-thumb {
 
 /* Improve touch targets on mobile */
 @media (max-width: 640px) {
-  button {
+  button:not(.hidden):not([class*="hidden"]) {
     min-height: 44px;
     min-width: 44px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
   }
   
   .emoji-picker-react .emoji-categories button {

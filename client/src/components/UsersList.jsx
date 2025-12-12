@@ -13,7 +13,7 @@ const UsersList = ({ users, currentUser, onClose }) => {
         </div>
         <button 
           onClick={onClose}
-          className="p-2 text-gray-400 hover:bg-neutral-800 rounded-lg transition-colors"
+          className="p-2 text-gray-400 hover:bg-neutral-800 rounded-lg transition-colors cursor-pointer"
           aria-label="Close users list"
         >
           <FaArrowLeft className="sm:hidden" />
