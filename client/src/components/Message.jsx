@@ -1,9 +1,14 @@
-import React, { useState } from "react";
-import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes } from "react-icons/fa";
+import React, { useState, useRef } from "react";
+import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV } from "react-icons/fa";
 
-const Message = ({ message, isOwnMessage }) => {
-  const { user, text, createdAt, type, fileName, fileType, fileSize, fileData, isImage } = message;
+const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStartEdit, showUsername = true }) => {
+  const { id, user, text, createdAt, type, fileName, fileType, fileSize, fileData, isImage, isEdited } = message;
   const [showImageModal, setShowImageModal] = useState(false);
+  const [showMenu, setShowMenu] = useState(false);
+  const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const longPressTimer = useRef(null);
+  const isLongPress = useRef(false);
   
   // Format time from timestamp
   const formatTime = (timestamp) => {
@@ -33,6 +38,69 @@ const Message = ({ message, isOwnMessage }) => {
     document.body.appendChild(link);
     link.click();
     document.body.removeChild(link);
+  };
+
+  // Handle edit - copy text to input box
+  const handleEdit = () => {
+    if (onStartEdit) {
+      onStartEdit(id, text);
+    }
+    setShowMenu(false);
+  };
+
+  // Handle delete confirmation
+  const handleDeleteClick = () => {
+    setShowMenu(false);
+    setShowDeleteConfirm(true);
+  };
+
+  // Confirm delete
+  const confirmDelete = () => {
+    if (onDeleteMessage) {
+      onDeleteMessage(id);
+    }
+    setShowDeleteConfirm(false);
+  };
+
+  // Cancel delete
+  const cancelDelete = () => {
+    setShowDeleteConfirm(false);
+  };
+
+  // Long press handlers for mobile
+  const handleTouchStart = () => {
+    if (!isOwnMessage || type === 'file' || user === 'System' || !id || !onStartEdit || !onDeleteMessage) return;
+    
+    isLongPress.current = false;
+    longPressTimer.current = setTimeout(() => {
+      isLongPress.current = true;
+      setShowMobileMenu(true);
+    }, 500); // 500ms long press
+  };
+
+  const handleTouchEnd = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  const handleTouchMove = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+    }
+  };
+
+  // Mobile menu handlers
+  const handleMobileEdit = () => {
+    setShowMobileMenu(false);
+    if (onStartEdit) {
+      onStartEdit(id, text);
+    }
+  };
+
+  const handleMobileDelete = () => {
+    setShowMobileMenu(false);
+    setShowDeleteConfirm(true);
   };
 
   // Helper function to add more padding around single emoji messages
@@ -120,22 +188,127 @@ const Message = ({ message, isOwnMessage }) => {
     );
   };
 
+  // Delete confirmation modal
+  const DeleteConfirmModal = () => {
+    if (!showDeleteConfirm) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 bg-black/70 z-50 flex items-center justify-center p-4"
+        onClick={cancelDelete}
+      >
+        <div 
+          className="bg-neutral-900 rounded-2xl p-6 max-w-sm w-full border border-neutral-800 shadow-2xl"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="text-center">
+            <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center mx-auto mb-4">
+              <FaTrash className="text-red-500" size={20} />
+            </div>
+            <h3 className="text-lg font-semibold text-white mb-2">Delete Message?</h3>
+            <p className="text-gray-400 text-sm mb-6">This action cannot be undone. The message will be permanently deleted.</p>
+            <div className="flex gap-3">
+              <button
+                onClick={cancelDelete}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-neutral-800 text-white hover:bg-neutral-700 transition-colors font-medium"
+              >
+                Cancel
+              </button>
+              <button
+                onClick={confirmDelete}
+                className="flex-1 px-4 py-2.5 rounded-xl bg-red-600 text-white hover:bg-red-700 transition-colors font-medium"
+              >
+                Delete
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
+  // Mobile action sheet (WhatsApp-style bottom sheet)
+  const MobileActionSheet = () => {
+    if (!showMobileMenu) return null;
+    
+    return (
+      <div 
+        className="fixed inset-0 bg-black/50 z-50 flex items-end justify-center md:hidden"
+        onClick={() => setShowMobileMenu(false)}
+      >
+        <div 
+          className="bg-neutral-900 rounded-t-2xl w-full max-w-lg border-t border-neutral-800 shadow-2xl animate-slide-up"
+          onClick={(e) => e.stopPropagation()}
+        >
+          <div className="w-12 h-1 bg-neutral-700 rounded-full mx-auto mt-3 mb-2"></div>
+          <div className="p-2 pb-6">
+            <button
+              onClick={handleMobileEdit}
+              className="w-full px-4 py-3.5 text-left text-base text-white hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
+            >
+              <FaEdit size={18} className="text-gray-400" /> Edit message
+            </button>
+            <button
+              onClick={handleMobileDelete}
+              className="w-full px-4 py-3.5 text-left text-base text-red-400 hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
+            >
+              <FaTrash size={18} /> Delete message
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  };
+
   return (
     <>
       <ImageModal />
+      <DeleteConfirmModal />
+      <MobileActionSheet />
       <div 
-        className={`flex items-end gap-2 ${isOwnMessage ? 'justify-end' : 'justify-start'}`}
+        className={`flex items-end ${isOwnMessage ? 'justify-end pr-2 sm:pr-3' : 'justify-start pl-2 sm:pl-3'} group`}
       >
-        {/* Avatar for received messages */}
-        {!isOwnMessage && (
-          <div className="w-8 h-8 bg-white rounded-full flex items-center justify-center flex-shrink-0 mb-0.5 font-semibold text-neutral-950 text-sm">
-            {user.charAt(0).toUpperCase()}
-          </div>
-        )}
-        
-        <div className="flex flex-col max-w-[75%] sm:max-w-[65%] md:max-w-[60%]">
-          {!isOwnMessage && (
+        <div className="flex flex-col max-w-[80%] sm:max-w-[70%] md:max-w-[65%] relative">
+          {!isOwnMessage && showUsername && user !== 'System' && (
             <div className="font-medium text-xs text-gray-400 mb-1 ml-1">{user}</div>
+          )}
+          
+          {/* Message actions menu for own messages - DESKTOP ONLY (hidden on mobile) */}
+          {isOwnMessage && type !== 'file' && user !== 'System' && id && onStartEdit && onDeleteMessage && (
+            <div className={`hidden md:block absolute -left-10 top-1/2 -translate-y-1/2 transition-opacity z-10 ${showMenu ? 'opacity-100' : 'opacity-0 group-hover:opacity-100'}`}>
+              <div className="relative">
+                <button
+                  onClick={() => setShowMenu(!showMenu)}
+                  className="p-1.5 rounded-full hover:bg-neutral-800 text-gray-400 hover:text-white transition-colors"
+                >
+                  <FaEllipsisV size={12} />
+                </button>
+                
+                {showMenu && (
+                  <>
+                    {/* Invisible backdrop to close menu on outside click */}
+                    <div 
+                      className="fixed inset-0 z-0" 
+                      onClick={() => setShowMenu(false)}
+                    />
+                    <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-neutral-800 rounded-lg shadow-xl border border-neutral-700 py-1 min-w-[100px] z-10">
+                      <button
+                        onClick={handleEdit}
+                        className="w-full px-3 py-2 text-left text-sm text-white hover:bg-neutral-700 flex items-center gap-2"
+                      >
+                        <FaEdit size={12} /> Edit
+                      </button>
+                      <button
+                        onClick={handleDeleteClick}
+                        className="w-full px-3 py-2 text-left text-sm text-red-400 hover:bg-neutral-700 flex items-center gap-2"
+                      >
+                        <FaTrash size={12} /> Delete
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            </div>
           )}
           
           <div 
@@ -143,12 +316,15 @@ const Message = ({ message, isOwnMessage }) => {
               isOwnMessage 
                 ? 'bg-white text-neutral-950 rounded-br-md shadow-lg' 
                 : 'bg-neutral-900 text-gray-100 border border-neutral-800 rounded-bl-md'
-            } ${type !== 'file' && isSingleEmoji(text) ? 'px-5 py-3' : ''}`}
+            } ${type !== 'file' && isSingleEmoji(text) ? 'px-5 py-3' : ''} select-none`}
+            onTouchStart={handleTouchStart}
+            onTouchEnd={handleTouchEnd}
+            onTouchMove={handleTouchMove}
           >
             {type === 'file' ? (
               renderFileContent()
             ) : (
-              <div className={`break-words message-text ${
+              <div className={`break-words message-text whitespace-pre-wrap ${
                 isSingleEmoji(text) ? 'text-3xl md:text-4xl' : 'text-sm md:text-base leading-relaxed'
               }`}>
                 {text}
@@ -156,17 +332,16 @@ const Message = ({ message, isOwnMessage }) => {
             )}
             
             <div 
-              className={`text-[10px] mt-1 ${
-                isOwnMessage ? 'text-neutral-600 text-right' : 'text-gray-500'
+              className={`text-[10px] mt-1 flex items-center gap-1 ${
+                isOwnMessage ? 'text-neutral-500 justify-end' : 'text-gray-500'
               }`}
+              style={isOwnMessage ? { color: '#737373' } : {}}
             >
+              {isEdited && <span className="italic">(edited)</span>}
               {formatTime(createdAt)}
             </div>
           </div>
         </div>
-        
-        {/* Spacer for sent messages to keep alignment */}
-        {isOwnMessage && <div className="w-8 flex-shrink-0"></div>}
       </div>
     </>
   );

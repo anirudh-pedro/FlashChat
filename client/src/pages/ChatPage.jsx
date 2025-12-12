@@ -18,6 +18,7 @@ const ChatPage = () => {
   const [socket, setSocket] = useState(null);
   const [showUsersList, setShowUsersList] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
+  const [editingMessage, setEditingMessage] = useState(null); // { id, text }
   
   const params = new URLSearchParams(location.search);
   const username = params.get("username");
@@ -122,6 +123,24 @@ const ChatPage = () => {
     const handleUserStoppedTyping = (username) => {
       setTypingUsers((prev) => prev.filter((user) => user !== username));
     };
+
+    // Handle message edited
+    const handleMessageEdited = ({ messageId, newText, editedAt }) => {
+      setMessages((prevMessages) => 
+        prevMessages.map((msg) => 
+          msg.id === messageId 
+            ? { ...msg, text: newText, isEdited: true, editedAt } 
+            : msg
+        )
+      );
+    };
+
+    // Handle message deleted
+    const handleMessageDeleted = ({ messageId }) => {
+      setMessages((prevMessages) => 
+        prevMessages.filter((msg) => msg.id !== messageId)
+      );
+    };
     
     // Handle reconnection - rejoin room automatically
     const handleReconnect = () => {
@@ -162,6 +181,8 @@ const ChatPage = () => {
     socket.on("userLeft", handleUserLeft);
     socket.on("userTyping", handleUserTyping);
     socket.on("userStoppedTyping", handleUserStoppedTyping);
+    socket.on("messageEdited", handleMessageEdited);
+    socket.on("messageDeleted", handleMessageDeleted);
     socket.on("connect", handleReconnect);
     socket.on("disconnect", handleDisconnect);
 
@@ -172,6 +193,8 @@ const ChatPage = () => {
       socket.off("userLeft", handleUserLeft);
       socket.off("userTyping", handleUserTyping);
       socket.off("userStoppedTyping", handleUserStoppedTyping);
+      socket.off("messageEdited", handleMessageEdited);
+      socket.off("messageDeleted", handleMessageDeleted);
       socket.off("connect", handleReconnect);
       socket.off("disconnect", handleDisconnect);
     };
@@ -193,6 +216,46 @@ const ChatPage = () => {
         toast.error(response.error);
       }
     });
+  };
+
+  const editMessage = (messageId, newText) => {
+    const socketInstance = getSocket();
+    socketInstance.emit("editMessage", { messageId, newText }, (response) => {
+      if (response && response.error) {
+        toast.error(response.error);
+      }
+    });
+  };
+
+  const deleteMessage = (messageId) => {
+    const socketInstance = getSocket();
+    socketInstance.emit("deleteMessage", messageId, (response) => {
+      if (response && response.error) {
+        toast.error(response.error);
+      }
+    });
+  };
+
+  // Start editing a message - copies text to input box
+  const startEdit = (messageId, text) => {
+    setEditingMessage({ id: messageId, text });
+  };
+
+  // Cancel editing
+  const cancelEdit = () => {
+    setEditingMessage(null);
+  };
+
+  // Handle sending message (new or edited)
+  const handleSendMessage = (message) => {
+    if (editingMessage) {
+      // We're editing an existing message
+      editMessage(editingMessage.id, message);
+      setEditingMessage(null);
+    } else {
+      // Send new message
+      sendMessage(message);
+    }
   };
 
   const toggleUsersList = () => {
@@ -243,14 +306,18 @@ const ChatPage = () => {
         <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
           <MessageList 
             messages={messages} 
-            currentUser={username} 
+            currentUser={username}
+            onStartEdit={startEdit}
+            onDeleteMessage={deleteMessage}
           />
           
           <TypingIndicator typingUsers={typingUsers} />
           
           <ChatInput 
-            onSendMessage={sendMessage}
+            onSendMessage={handleSendMessage}
             onSendFile={sendFile}
+            editingMessage={editingMessage}
+            onCancelEdit={cancelEdit}
           />
         </div>
         

@@ -48,8 +48,38 @@ button {
   border-radius: 4px;
 }
 
+/* Textarea thin scrollbar */
+textarea::-webkit-scrollbar {
+  width: 4px;
+}
+
+textarea::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+textarea::-webkit-scrollbar-thumb {
+  @apply bg-neutral-600;
+  border-radius: 2px;
+}
+
 ::-webkit-scrollbar-thumb:hover {
   @apply bg-gray-500;
+}
+
+/* Mobile action sheet slide-up animation */
+@keyframes slide-up {
+  from {
+    transform: translateY(100%);
+    opacity: 0;
+  }
+  to {
+    transform: translateY(0);
+    opacity: 1;
+  }
+}
+
+.animate-slide-up {
+  animation: slide-up 0.25s ease-out forwards;
 }
 
 /* Add these improved mobile-specific styles */

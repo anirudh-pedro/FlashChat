@@ -383,6 +383,7 @@ const setupSocketHandlers = (io) => {
 
         // Create message object with sanitized content
         const messageObj = {
+          id: `${socket.id}-${Date.now()}`, // Unique message ID
           user: user.username,
           text: sanitizedMessage,
           createdAt: new Date().toISOString()
@@ -391,10 +392,71 @@ const setupSocketHandlers = (io) => {
         // Send to everyone in the room including sender
         io.to(user.room).emit('message', messageObj);
         
-        if (callback) callback();
+        if (callback) callback({ messageId: messageObj.id });
       } catch (error) {
         console.error('Error in sendMessage handler:', error);
         if (callback) callback({ error: 'Failed to send message' });
+      }
+    });
+
+    // Handle message edit
+    socket.on('editMessage', ({ messageId, newText }, callback) => {
+      try {
+        const user = getUser(socket.id);
+        if (!user) {
+          if (callback) callback({ error: 'User not found' });
+          return;
+        }
+
+        // Validate new text
+        if (!newText || typeof newText !== 'string') {
+          if (callback) callback({ error: 'Invalid message text' });
+          return;
+        }
+
+        // Sanitize the new message
+        const sanitizationResult = sanitizeMessage(newText);
+        if (!sanitizationResult.isValid) {
+          if (callback) callback({ error: sanitizationResult.reason || 'Invalid message content' });
+          return;
+        }
+
+        const sanitizedText = sanitizationResult.sanitized;
+        if (sanitizedText.length > 1000) {
+          if (callback) callback({ error: 'Message too long (max 1000 characters)' });
+          return;
+        }
+
+        // Broadcast edit to all users in room
+        io.to(user.room).emit('messageEdited', {
+          messageId,
+          newText: sanitizedText,
+          editedAt: new Date().toISOString()
+        });
+
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in editMessage handler:', error);
+        if (callback) callback({ error: 'Failed to edit message' });
+      }
+    });
+
+    // Handle message delete
+    socket.on('deleteMessage', (messageId, callback) => {
+      try {
+        const user = getUser(socket.id);
+        if (!user) {
+          if (callback) callback({ error: 'User not found' });
+          return;
+        }
+
+        // Broadcast delete to all users in room
+        io.to(user.room).emit('messageDeleted', { messageId });
+
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in deleteMessage handler:', error);
+        if (callback) callback({ error: 'Failed to delete message' });
       }
     });
 
@@ -459,6 +521,7 @@ const setupSocketHandlers = (io) => {
 
         // Create file message object
         const fileMessage = {
+          id: `${socket.id}-${Date.now()}`, // Unique message ID
           user: user.username,
           type: 'file',
           fileName: sanitizedFileName,
@@ -474,7 +537,7 @@ const setupSocketHandlers = (io) => {
         
         console.log(`📁 File shared by ${user.username}: ${sanitizedFileName} (${(fileSize / 1024).toFixed(1)}KB)`);
         
-        if (callback) callback({ success: true });
+        if (callback) callback({ success: true, messageId: fileMessage.id });
       } catch (error) {
         console.error('Error in sendFile handler:', error);
         if (callback) callback({ error: 'Failed to send file' });

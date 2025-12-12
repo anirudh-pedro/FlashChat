@@ -1,20 +1,49 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaPaperPlane, FaSmile, FaTimes, FaPaperclip, FaImage } from "react-icons/fa";
+import { FaPaperPlane, FaSmile, FaTimes, FaPaperclip, FaPen } from "react-icons/fa";
 import EmojiPicker from "emoji-picker-react";
 import { getSocket } from "../socket";
 
-const ChatInput = ({ onSendMessage, onSendFile }) => {
+const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
-  const inputRef = useRef(null);
+  const textareaRef = useRef(null);
   const fileInputRef = useRef(null);
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const MAX_MESSAGE_LENGTH = 1000;
   const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+
+  // Populate input when editing a message
+  useEffect(() => {
+    if (editingMessage) {
+      setMessage(editingMessage.text);
+      // Focus the textarea
+      setTimeout(() => textareaRef.current?.focus(), 100);
+    }
+  }, [editingMessage]);
+
+  // Auto-resize textarea with scrollbar when exceeding max height
+  useEffect(() => {
+    if (textareaRef.current) {
+      // Reset height to auto to get the correct scrollHeight
+      textareaRef.current.style.height = 'auto';
+      const scrollHeight = textareaRef.current.scrollHeight;
+      const maxHeight = 120;
+      
+      if (scrollHeight > maxHeight) {
+        // Content exceeds max, set to max and enable scroll
+        textareaRef.current.style.height = maxHeight + 'px';
+        textareaRef.current.style.overflowY = 'auto';
+      } else {
+        // Content fits, use scrollHeight
+        textareaRef.current.style.height = scrollHeight + 'px';
+        textareaRef.current.style.overflowY = 'hidden';
+      }
+    }
+  }, [message]);
   
   useEffect(() => {
     // Close emoji picker when clicking outside
@@ -61,6 +90,34 @@ const ChatInput = ({ onSendMessage, onSendFile }) => {
     
     onSendMessage(trimmedMessage);
     setMessage("");
+    
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  };
+
+  const handleCancelEdit = () => {
+    setMessage("");
+    onCancelEdit?.();
+    // Reset textarea height
+    if (textareaRef.current) {
+      textareaRef.current.style.height = 'auto';
+    }
+  };
+
+  const handleKeyDown = (e) => {
+    // Submit on Enter (without Shift)
+    if (e.key === 'Enter' && !e.shiftKey) {
+      e.preventDefault();
+      handleSubmit(e);
+    }
+    // Cancel editing on Escape
+    if (e.key === 'Escape' && editingMessage) {
+      e.preventDefault();
+      handleCancelEdit();
+    }
+    // Shift+Enter will naturally create a new line in textarea
   };
 
   const handleMessageChange = (e) => {
@@ -100,12 +157,8 @@ const ChatInput = ({ onSendMessage, onSendFile }) => {
 
   const handleEmojiClick = (emojiObject) => {
     setMessage(prevMessage => prevMessage + emojiObject.emoji);
-    // Close emoji picker on mobile after selection to save space
-    if (window.innerWidth < 640) {
-      setShowEmojiPicker(false);
-      // Focus the input after selecting an emoji on mobile
-      setTimeout(() => inputRef.current?.focus(), 100);
-    }
+    // Focus the textarea after selecting an emoji
+    setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
   const handleFileSelect = async (e) => {
@@ -168,6 +221,27 @@ const ChatInput = ({ onSendMessage, onSendFile }) => {
 
   return (
     <div className="bg-neutral-900 border-t border-neutral-800 px-3 py-2.5 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
+      {/* Editing indicator */}
+      {editingMessage && (
+        <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-neutral-800 max-w-5xl mx-auto">
+          <div className="flex items-center gap-2 text-sm text-white">
+            <FaPen size={12} className="text-blue-400" />
+            <span className="text-blue-400 font-medium">Editing message</span>
+            <span className="text-gray-400 truncate max-w-[200px] sm:max-w-[300px]">
+              "{editingMessage.text.length > 50 ? editingMessage.text.substring(0, 50) + '...' : editingMessage.text}"
+            </span>
+          </div>
+          <button
+            type="button"
+            onClick={handleCancelEdit}
+            className="p-1.5 text-gray-400 hover:text-white hover:bg-neutral-800 rounded-lg transition-colors"
+            aria-label="Cancel editing"
+          >
+            <FaTimes size={14} />
+          </button>
+        </div>
+      )}
+      
       {isNearLimit && (
         <div className={`text-xs text-right pb-2 ${isOverLimit ? 'text-red-400' : 'text-yellow-400'}`}>
           {messageLength}/{MAX_MESSAGE_LENGTH} characters
@@ -238,7 +312,7 @@ const ChatInput = ({ onSendMessage, onSendFile }) => {
         </div>
       )}
       
-      <form onSubmit={handleSubmit} className="flex items-center gap-2 sm:gap-3 max-w-5xl mx-auto">
+      <form onSubmit={handleSubmit} className="flex items-end gap-2 sm:gap-3 max-w-5xl mx-auto">
         {/* Hidden file input */}
         <input
           type="file"
@@ -268,39 +342,49 @@ const ChatInput = ({ onSendMessage, onSendFile }) => {
           )}
         </button>
 
+        {/* Emoji button - hidden on mobile and tablets */}
         <button 
           type="button"
           ref={emojiButtonRef}
           onClick={() => setShowEmojiPicker(!showEmojiPicker)}
-          className="p-2 sm:p-2.5 md:p-3 rounded-xl text-gray-300 hover:bg-neutral-800 transition-colors flex-shrink-0"
+          className="hidden md:block p-2 md:p-3 rounded-xl text-gray-300 hover:bg-neutral-800 transition-colors flex-shrink-0"
           aria-label="Insert emoji"
         >
-          <FaSmile size={18} className="sm:w-5 sm:h-5" />
+          <FaSmile size={18} className="md:w-5 md:h-5" />
         </button>
         
         <div className="flex-1 relative min-w-0">
-          <input
-            type="text"
-            ref={inputRef}
+          <textarea
+            ref={textareaRef}
             value={message}
             onChange={handleMessageChange}
+            onKeyDown={handleKeyDown}
             placeholder="Type a message..."
             maxLength={MAX_MESSAGE_LENGTH}
-            className="w-full py-2 sm:py-2.5 md:py-3.5 px-3 sm:px-4 md:px-5 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all"
+            rows={1}
+            className="w-full py-2 sm:py-2.5 md:py-3 px-3 sm:px-4 md:px-5 text-sm md:text-base bg-neutral-950 border border-neutral-800 text-white rounded-xl sm:rounded-2xl focus:outline-none focus:ring-2 focus:ring-white/50 focus:border-transparent placeholder-gray-500 transition-all resize-none overflow-y-auto leading-normal scrollbar-thin scrollbar-thumb-neutral-700 scrollbar-track-transparent"
+            style={{ minHeight: '40px', maxHeight: '120px' }}
           />
         </div>
         
         <button
           type="submit"
           disabled={!message.trim()}
-          className={`p-2 sm:p-2.5 md:p-3.5 rounded-xl flex-shrink-0 transition-all ${
+          className={`p-2 sm:p-2.5 md:p-3.5 rounded-xl flex-shrink-0 transition-all self-end ${
             message.trim() 
-              ? 'bg-white text-neutral-950 hover:bg-gray-100 hover:scale-105 shadow-lg' 
+              ? editingMessage
+                ? 'bg-blue-500 text-white hover:bg-blue-600 hover:scale-105 shadow-lg'
+                : 'bg-white text-neutral-950 hover:bg-gray-100 hover:scale-105 shadow-lg' 
               : 'bg-neutral-800 text-gray-500 cursor-not-allowed'
           }`}
-          aria-label="Send message"
+          aria-label={editingMessage ? "Save edit" : "Send message"}
+          title={editingMessage ? "Save changes" : "Send message"}
         >
-          <FaPaperPlane size={16} className="sm:w-[18px] sm:h-[18px]" />
+          {editingMessage ? (
+            <FaPen size={16} className="sm:w-[18px] sm:h-[18px]" />
+          ) : (
+            <FaPaperPlane size={16} className="sm:w-[18px] sm:h-[18px]" />
+          )}
         </button>
       </form>
     </div>
