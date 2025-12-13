@@ -223,6 +223,17 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
 
   return (
     <div className="bg-neutral-900 border-t border-neutral-800 px-2 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
+      {/* File upload loader overlay */}
+      {isUploading && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
+          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col items-center gap-4 shadow-2xl">
+            <div className="w-12 h-12 border-4 border-neutral-700 border-t-white rounded-full animate-spin" />
+            <p className="text-white font-medium text-lg">Sending file...</p>
+            <p className="text-gray-400 text-sm">Please wait</p>
+          </div>
+        </div>
+      )}
+
       {/* Editing indicator */}
       {editingMessage && (
         <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-neutral-800 max-w-5xl mx-auto">

@@ -1,5 +1,5 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV } from "react-icons/fa";
+import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV, FaCopy } from "react-icons/fa";
 
 const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStartEdit, showUsername = true }) => {
   const { id, user, text, createdAt, type, fileName, fileType, fileSize, fileData, isImage, isEdited } = message;
@@ -7,6 +7,7 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
   const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [copied, setCopied] = useState(false);
   const longPressTimer = useRef(null);
   const isLongPress = useRef(false);
   const menuRef = useRef(null);
@@ -87,9 +88,9 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     setShowDeleteConfirm(false);
   };
 
-  // Long press handlers for mobile
+  // Long press handlers for mobile - works on all messages for copy, own messages for edit/delete
   const handleTouchStart = () => {
-    if (!isOwnMessage || type === 'file' || user === 'System' || !id || !onStartEdit || !onDeleteMessage) return;
+    if (type === 'file' || user === 'System') return;
     
     isLongPress.current = false;
     longPressTimer.current = setTimeout(() => {
@@ -121,6 +122,20 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
   const handleMobileDelete = () => {
     setShowMobileMenu(false);
     setShowDeleteConfirm(true);
+  };
+
+  // Copy message handler
+  const handleCopy = async () => {
+    if (!text) return;
+    try {
+      await navigator.clipboard.writeText(text);
+      setCopied(true);
+      setShowMobileMenu(false);
+      setShowMenu(false);
+      setTimeout(() => setCopied(false), 2000);
+    } catch (err) {
+      console.error('Failed to copy:', err);
+    }
   };
 
   // Helper function to add more padding around single emoji messages
@@ -247,9 +262,9 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     );
   };
 
-  // Mobile action sheet (WhatsApp-style bottom sheet)
+  // Mobile action sheet (WhatsApp-style bottom sheet) - available for all messages (copy), own messages (edit/delete)
   const MobileActionSheet = () => {
-    if (!showMobileMenu) return null;
+    if (!showMobileMenu || type === 'file' || user === 'System') return null;
     
     return (
       <div 
@@ -263,17 +278,27 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
           <div className="w-12 h-1 bg-neutral-700 rounded-full mx-auto mt-3 mb-2"></div>
           <div className="p-2 pb-6">
             <button
-              onClick={handleMobileEdit}
+              onClick={handleCopy}
               className="w-full px-4 py-3.5 text-left text-base text-white hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
             >
-              <FaEdit size={18} className="text-gray-400" /> Edit message
+              <FaCopy size={18} className="text-gray-400" /> {copied ? 'Copied!' : 'Copy message'}
             </button>
-            <button
-              onClick={handleMobileDelete}
-              className="w-full px-4 py-3.5 text-left text-base text-red-400 hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
-            >
-              <FaTrash size={18} /> Delete message
-            </button>
+            {isOwnMessage && (
+              <>
+                <button
+                  onClick={handleMobileEdit}
+                  className="w-full px-4 py-3.5 text-left text-base text-white hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
+                >
+                  <FaEdit size={18} className="text-gray-400" /> Edit message
+                </button>
+                <button
+                  onClick={handleMobileDelete}
+                  className="w-full px-4 py-3.5 text-left text-base text-red-400 hover:bg-neutral-800 rounded-xl flex items-center gap-3 transition-colors"
+                >
+                  <FaTrash size={18} /> Delete message
+                </button>
+              </>
+            )}
           </div>
         </div>
       </div>
@@ -313,6 +338,12 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
                 {showMenu && (
                   <div className="absolute right-full mr-2 top-1/2 -translate-y-1/2 bg-neutral-800 rounded-lg shadow-xl border border-neutral-700 py-1 min-w-[100px] z-50">
                     <button
+                      onClick={handleCopy}
+                      className="w-full px-3 py-2 text-left text-sm text-white hover:bg-neutral-700 flex items-center gap-2 cursor-pointer"
+                    >
+                      <FaCopy size={12} /> {copied ? 'Copied!' : 'Copy'}
+                    </button>
+                    <button
                       onClick={handleEdit}
                       className="w-full px-3 py-2 text-left text-sm text-white hover:bg-neutral-700 flex items-center gap-2 cursor-pointer"
                     >
@@ -335,10 +366,16 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
               isOwnMessage 
                 ? 'bg-neutral-800 text-gray-100 rounded-br-md shadow-lg' 
                 : 'bg-neutral-900 text-gray-100 border border-neutral-800 rounded-bl-md'
-            } ${type !== 'file' && isSingleEmoji(text) ? 'px-5 py-3' : ''} select-none`}
+            } ${type !== 'file' && isSingleEmoji(text) ? 'px-5 py-3' : ''} select-none ${type !== 'file' && user !== 'System' ? 'md:cursor-pointer' : ''}`}
             onTouchStart={handleTouchStart}
             onTouchEnd={handleTouchEnd}
             onTouchMove={handleTouchMove}
+            onDoubleClick={() => {
+              if (type !== 'file' && user !== 'System' && text) {
+                handleCopy();
+              }
+            }}
+            title={type !== 'file' && user !== 'System' ? 'Double-click to copy' : undefined}
           >
             {type === 'file' ? (
               renderFileContent()
