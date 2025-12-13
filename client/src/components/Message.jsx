@@ -333,7 +333,7 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
           <div 
             className={`rounded-2xl px-4 py-2.5 ${
               isOwnMessage 
-                ? 'bg-white text-neutral-950 rounded-br-md shadow-lg' 
+                ? 'bg-neutral-800 text-gray-100 rounded-br-md shadow-lg' 
                 : 'bg-neutral-900 text-gray-100 border border-neutral-800 rounded-bl-md'
             } ${type !== 'file' && isSingleEmoji(text) ? 'px-5 py-3' : ''} select-none`}
             onTouchStart={handleTouchStart}
@@ -352,9 +352,8 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
             
             <div 
               className={`text-[10px] mt-1 flex items-center gap-1 ${
-                isOwnMessage ? 'text-neutral-500 justify-end' : 'text-gray-500'
+                isOwnMessage ? 'text-gray-400 justify-end' : 'text-gray-500'
               }`}
-              style={isOwnMessage ? { color: '#737373' } : {}}
             >
               {isEdited && <span className="italic">(edited)</span>}
               {formatTime(createdAt)}

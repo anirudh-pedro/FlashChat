@@ -94,6 +94,8 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
     // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
+      // Keep focus on textarea to prevent mobile keyboard from closing
+      textareaRef.current.focus();
     }
   };
 

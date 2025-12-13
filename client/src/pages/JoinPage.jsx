@@ -68,11 +68,13 @@ const JoinPage = () => {
       const socket = initSocket();
       
       if (!socket.connected) {
+        // Longer timeout for Render free tier cold starts (can take 30-60s)
+        setLoadingStep('Waking up server...');
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
             socket.off('connect', onConnect);
-            reject(new Error('Could not connect to server. Please check your internet connection.'));
-          }, 15000);
+            reject(new Error('Server is taking too long to respond. Please try again.'));
+          }, 45000); // 45 seconds for cold start
           
           const onConnect = () => {
             clearTimeout(timeout);
@@ -93,8 +95,8 @@ const JoinPage = () => {
     } catch (err) {
       let errorMsg = err.message || 'Failed to join nearby chat.';
       
-      if (err.message.includes('connect to server')) {
-        errorMsg += '\n\n💡 Try: Check your internet or use "Private Room" instead';
+      if (err.message.includes('too long') || err.message.includes('connect to server')) {
+        errorMsg += '\n\n💡 The server may be sleeping. Try again in a few seconds.';
       } else if (err.message.includes('timed out')) {
         errorMsg += '\n\n💡 Try: Move near a window or use "Private Room" instead';
       } else if (err.message.includes('denied')) {
@@ -333,7 +335,7 @@ const JoinPage = () => {
                                   Discover Nearby Chats
                                 </p>
                                 <p className="text-xs text-gray-300 leading-relaxed">
-                                  Connect with people in your area (~55km radius). Uses approximate location only - your privacy is protected.
+                                  Connect with people within ~15km radius.
                                 </p>
                               </div>
                             </div>
