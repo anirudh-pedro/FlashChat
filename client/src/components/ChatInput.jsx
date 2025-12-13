@@ -190,6 +190,23 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
     setIsUploading(true);
 
     try {
+      // Check socket connection first (mobile file picker can cause disconnect)
+      const socket = getSocket();
+      if (!socket || !socket.connected) {
+        // Wait a moment for potential reconnection
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        
+        const reconnectedSocket = getSocket();
+        if (!reconnectedSocket || !reconnectedSocket.connected) {
+          alert('Connection lost. Please try again.');
+          setIsUploading(false);
+          if (fileInputRef.current) {
+            fileInputRef.current.value = '';
+          }
+          return;
+        }
+      }
+
       // Convert file to base64
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();

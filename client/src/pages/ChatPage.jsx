@@ -19,6 +19,7 @@ const ChatPage = () => {
   const [showUsersList, setShowUsersList] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [editingMessage, setEditingMessage] = useState(null); // { id, text }
+  const [viewportHeight, setViewportHeight] = useState('100%');
   
   const params = new URLSearchParams(location.search);
   const username = params.get("username");
@@ -35,6 +36,29 @@ const ChatPage = () => {
     usernameRef.current = username;
     roomRef.current = room;
   }, [username, room]);
+
+  // Handle visual viewport changes (keyboard open/close) - WhatsApp-like behavior
+  useEffect(() => {
+    const handleViewportResize = () => {
+      if (window.visualViewport) {
+        setViewportHeight(`${window.visualViewport.height}px`);
+      }
+    };
+
+    // Set initial height
+    if (window.visualViewport) {
+      setViewportHeight(`${window.visualViewport.height}px`);
+      window.visualViewport.addEventListener('resize', handleViewportResize);
+      window.visualViewport.addEventListener('scroll', handleViewportResize);
+    }
+
+    return () => {
+      if (window.visualViewport) {
+        window.visualViewport.removeEventListener('resize', handleViewportResize);
+        window.visualViewport.removeEventListener('scroll', handleViewportResize);
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!username || !room) {
@@ -276,7 +300,10 @@ const ChatPage = () => {
   const isLocationBased = isLocationRoom(room);
 
   return (
-    <div className="flex flex-col h-full w-full overflow-hidden bg-neutral-950">
+    <div 
+      className="flex flex-col w-full overflow-hidden bg-neutral-950"
+      style={{ height: viewportHeight }}
+    >
       <ToastContainer 
         position="top-right" 
         autoClose={3000}
