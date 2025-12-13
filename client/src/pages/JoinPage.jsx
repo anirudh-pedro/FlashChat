@@ -1,9 +1,20 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { FaKey, FaMapMarkerAlt, FaRandom, FaUsers, FaBolt, FaShieldAlt } from 'react-icons/fa';
 import { generateUniqueRoomId } from '../utils/roomUtils';
 import { getLocationBasedRoom } from '../utils/geolocation';
 import { initSocket } from '../socket';
+
+// Get the server URL for wake-up ping
+const getServerUrl = () => {
+  if (typeof window !== 'undefined') {
+    const hostname = window.location.hostname;
+    if (hostname === 'localhost' || hostname === '127.0.0.1') {
+      return 'http://localhost:5000';
+    }
+  }
+  return import.meta.env.VITE_API_URL || 'https://flashchat-oyd6.onrender.com';
+};
 
 const JoinPage = () => {
   const [username, setUsername] = useState('');
@@ -14,6 +25,19 @@ const JoinPage = () => {
   const [error, setError] = useState('');
   
   const navigate = useNavigate();
+
+  // Wake up the server when user opens the page
+  useEffect(() => {
+    const wakeUpServer = async () => {
+      try {
+        // Simple fetch to wake up Render server
+        fetch(`${getServerUrl()}/health`, { method: 'GET' }).catch(() => {});
+      } catch (e) {
+        // Silently ignore errors - this is just a background ping
+      }
+    };
+    wakeUpServer();
+  }, []);
 
   const handleGenerateRandomRoomId = async () => {
     setIsLoading(true);
@@ -64,16 +88,14 @@ const JoinPage = () => {
       const locationRoom = await getLocationBasedRoom();
       
       // Now initialize socket connection
-      setLoadingStep('Connecting to server...');
+      setLoadingStep('Connecting...');
       const socket = initSocket();
       
       if (!socket.connected) {
-        // Longer timeout for Render free tier cold starts (can take 30-60s)
-        setLoadingStep('Waking up server...');
         await new Promise((resolve, reject) => {
           const timeout = setTimeout(() => {
             socket.off('connect', onConnect);
-            reject(new Error('Server is taking too long to respond. Please try again.'));
+            reject(new Error('Connection failed. Please try again.'));
           }, 45000); // 45 seconds for cold start
           
           const onConnect = () => {
@@ -95,12 +117,10 @@ const JoinPage = () => {
     } catch (err) {
       let errorMsg = err.message || 'Failed to join nearby chat.';
       
-      if (err.message.includes('too long') || err.message.includes('connect to server')) {
-        errorMsg += '\n\n💡 The server may be sleeping. Try again in a few seconds.';
-      } else if (err.message.includes('timed out')) {
-        errorMsg += '\n\n💡 Try: Move near a window or use "Private Room" instead';
+      if (err.message.includes('timed out')) {
+        errorMsg = 'Location request timed out. Please try again.';
       } else if (err.message.includes('denied')) {
-        errorMsg += '\n\n💡 Try: Enable location in settings or use "Private Room" instead';
+        errorMsg = 'Location access denied. Please enable location or use Private Room.';
       }
       
       setError(errorMsg);

@@ -95,7 +95,7 @@ app.use(securityHeaders);
 // Middleware
 app.use(cors({
   origin: process.env.NODE_ENV === 'production' 
-    ? 'https://flashchat-oyd6.onrender.com' 
+    ? ['https://flashchat-oyd6.onrender.com', 'https://flash-chat-sigma.vercel.app', /\.vercel\.app$/] 
     : '*',
   methods: ['GET', 'POST']
 }));
