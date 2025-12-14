@@ -16,13 +16,12 @@ html, body {
   @apply bg-neutral-950 text-gray-100;
   overflow-x: hidden;
   overflow-y: auto;
-  overscroll-behavior-y: contain;
 }
 
 #root {
   height: 100%;
   width: 100%;
-  overflow: hidden;
+  overflow: visible;
   display: flex;
   flex-direction: column;
 }
