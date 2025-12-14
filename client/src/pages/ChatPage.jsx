@@ -41,7 +41,10 @@ const ChatPage = () => {
   useEffect(() => {
     const handleViewportResize = () => {
       if (window.visualViewport) {
-        setViewportHeight(`${window.visualViewport.height}px`);
+        // Use requestAnimationFrame to prevent layout thrashing
+        requestAnimationFrame(() => {
+          setViewportHeight(`${window.visualViewport.height}px`);
+        });
       }
     };
 
@@ -49,13 +52,11 @@ const ChatPage = () => {
     if (window.visualViewport) {
       setViewportHeight(`${window.visualViewport.height}px`);
       window.visualViewport.addEventListener('resize', handleViewportResize);
-      window.visualViewport.addEventListener('scroll', handleViewportResize);
     }
 
     return () => {
       if (window.visualViewport) {
         window.visualViewport.removeEventListener('resize', handleViewportResize);
-        window.visualViewport.removeEventListener('scroll', handleViewportResize);
       }
     };
   }, []);

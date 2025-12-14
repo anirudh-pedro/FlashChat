@@ -10,7 +10,7 @@ const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, on
   }, [messages]);
 
   const scrollToBottom = () => {
-    messagesEndRef.current?.scrollIntoView({ behavior: "smooth" });
+    messagesEndRef.current?.scrollIntoView({ behavior: "instant", block: "end" });
   };
 
   // Group messages by date for date separators
