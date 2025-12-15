@@ -120,15 +120,30 @@ const ChatPage = () => {
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
-      // Only disconnect if we actually joined (prevents StrictMode double-cleanup)
-      if (isMountedRef.current && hasJoinedRef.current) {
-        leaveRoom();
-        hasJoinedRef.current = false;
-        isMountedRef.current = false;
-        isInitialConnectionRef.current = true;
-        disconnectSocket();
-      }
+      
+      // Use a small timeout to distinguish between StrictMode remount and actual unmount
+      // StrictMode will remount immediately (within ~10ms), real navigation won't
+      const cleanupTimeout = setTimeout(() => {
+        if (hasJoinedRef.current) {
+          leaveRoom();
+          hasJoinedRef.current = false;
+          isMountedRef.current = false;
+          isInitialConnectionRef.current = true;
+          disconnectSocket();
+        }
+      }, 100);
+      
+      // Store timeout ID so it can be cleared if component remounts (StrictMode)
+      window.__flashchatCleanupTimeout = cleanupTimeout;
     };
+  }, []);
+
+  // Clear any pending cleanup on mount (handles StrictMode)
+  useEffect(() => {
+    if (window.__flashchatCleanupTimeout) {
+      clearTimeout(window.__flashchatCleanupTimeout);
+      window.__flashchatCleanupTimeout = null;
+    }
   }, []);
 
   useEffect(() => {
