@@ -1,3 +1,4 @@
+// Redis-based user management (with in-memory fallback)
 const { 
   addUser, 
   removeUser, 
@@ -8,7 +9,7 @@ const {
   checkRoomCapacity,
   isRoomActive,
   ROOM_CAPACITY
-} = require('./utils/userManager');
+} = require('./utils/userManagerRedis');
 
 // Redis message persistence
 const { 
@@ -305,10 +306,11 @@ const setupSocketHandlers = (io) => {
         socket.to(user.room).emit('userJoined', user.username);
 
         // Send updated room data to all users in the room (including capacity info)
-        const roomInfo = getRoomInfo(user.room);
+        const roomInfo = await getRoomInfo(user.room);
+        const usersInRoom = await getUsersInRoom(user.room);
         io.to(user.room).emit('roomData', {
           room: user.room,
-          users: getUsersInRoom(user.room),
+          users: usersInRoom,
           capacity: roomInfo.capacity,
           available: roomInfo.available,
           isFull: roomInfo.isFull
@@ -322,20 +324,20 @@ const setupSocketHandlers = (io) => {
     });
     
     // Handle room ID availability check
-    socket.on('checkRoomAvailability', (roomId, callback) => {
-      const isActive = isRoomActive(roomId);
+    socket.on('checkRoomAvailability', async (roomId, callback) => {
+      const isActive = await isRoomActive(roomId);
       callback({ isActive });
     });
     
     // Handle room capacity check
-    socket.on('checkRoomCapacity', (roomId, callback) => {
+    socket.on('checkRoomCapacity', async (roomId, callback) => {
       try {
         if (!roomId || typeof roomId !== 'string') {
           return callback({ error: 'Invalid room ID' });
         }
         
-        const capacityInfo = checkRoomCapacity(roomId);
-        const roomInfo = getRoomInfo(roomId);
+        const capacityInfo = await checkRoomCapacity(roomId);
+        const roomInfo = await getRoomInfo(roomId);
         
         callback({ 
           success: true,
@@ -352,7 +354,7 @@ const setupSocketHandlers = (io) => {
     });
     
     // Handle messages
-    socket.on('sendMessage', (message, callback) => {
+    socket.on('sendMessage', async (message, callback) => {
       try {
         // Check rate limit for message action
         const rateLimitCheck = checkRateLimit(socket.id, 'message');
@@ -361,7 +363,7 @@ const setupSocketHandlers = (io) => {
           return;
         }
         
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
           return;
@@ -419,7 +421,7 @@ const setupSocketHandlers = (io) => {
     // Handle message edit
     socket.on('editMessage', async ({ messageId, newText }, callback) => {
       try {
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
           return;
@@ -475,7 +477,7 @@ const setupSocketHandlers = (io) => {
     // Handle message delete
     socket.on('deleteMessage', async (messageId, callback) => {
       try {
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
           return;
@@ -506,7 +508,7 @@ const setupSocketHandlers = (io) => {
     });
 
     // Handle file/image sharing
-    socket.on('sendFile', (fileData, callback) => {
+    socket.on('sendFile', async (fileData, callback) => {
       try {
         // Check rate limit for message action (files count as messages)
         const rateLimitCheck = checkRateLimit(socket.id, 'message');
@@ -515,7 +517,7 @@ const setupSocketHandlers = (io) => {
           return;
         }
         
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
           return;
@@ -594,9 +596,9 @@ const setupSocketHandlers = (io) => {
     });
     
     // Handle typing indicator
-    socket.on('typing', () => {
+    socket.on('typing', async () => {
       try {
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (user) {
           // Broadcast to other users in the room (not to self)
           socket.to(user.room).emit('userTyping', user.username);
@@ -607,9 +609,9 @@ const setupSocketHandlers = (io) => {
     });
     
     // Handle stop typing indicator
-    socket.on('stopTyping', () => {
+    socket.on('stopTyping', async () => {
       try {
-        const user = getUser(socket.id);
+        const user = await getUser(socket.id);
         if (user) {
           // Broadcast to other users in the room (not to self)
           socket.to(user.room).emit('userStoppedTyping', user.username);
@@ -620,31 +622,31 @@ const setupSocketHandlers = (io) => {
     });
     
     // Handle user explicitly leaving
-    socket.on('leaveRoom', () => {
-      const user = removeUser(socket.id);
+    socket.on('leaveRoom', async () => {
+      const user = await removeUser(socket.id);
       
       if (user) {
-        handleUserLeaving(socket, user);
+        await handleUserLeaving(socket, user);
       }
     });
     
     // Handle disconnects (browser close, etc.)
-    socket.on('disconnect', () => {
+    socket.on('disconnect', async () => {
       console.log(`Connection disconnected: ${socket.id}`);
       
       // Clean up rate limit data for this socket
       cleanupRateLimit(socket.id);
       
-      const user = removeUser(socket.id);
+      const user = await removeUser(socket.id);
       
       if (user) {
-        handleUserLeaving(socket, user);
+        await handleUserLeaving(socket, user);
       }
     });
   });
 
   // Helper function for handling a user leaving
-  const handleUserLeaving = (socket, user) => {
+  const handleUserLeaving = async (socket, user) => {
     // Notify other users in the room
     socket.to(user.room).emit('message', {
       user: 'System',
@@ -656,20 +658,20 @@ const setupSocketHandlers = (io) => {
     socket.to(user.room).emit('userLeft', user.username);
 
     // Send updated room data (including capacity info)
-    const roomInfo = getRoomInfo(user.room);
+    const roomInfo = await getRoomInfo(user.room);
+    const usersInRoom = await getUsersInRoom(user.room);
     io.to(user.room).emit('roomData', {
       room: user.room,
-      users: getUsersInRoom(user.room),
+      users: usersInRoom,
       capacity: roomInfo.capacity,
       available: roomInfo.available,
       isFull: roomInfo.isFull
     });
 
     // If room is now empty, we could clean it up
-    // (though this is optional since it's in-memory anyway)
-    const roomUserCount = getRoomCount(user.room);
-    if (roomUserCount === 0) {
-      console.log(`Room ${user.room} is now empty`);
+    // (Redis TTL will handle cleanup automatically)
+    if (usersInRoom.length === 0) {
+      console.log(`Room ${user.room} is now empty (will be cleaned up by Redis TTL)`);
     }
   };
 

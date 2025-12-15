@@ -152,11 +152,7 @@ startServer();
 process.on('SIGINT', async () => {
   console.log('Shutting down server...');
   
-  // Clean up all room timers before shutdown
-  const { cleanupAllTimers } = require('./utils/userManager');
-  cleanupAllTimers();
-  
-  // Close Redis connection
+  // Close Redis connection (data persists in Redis with TTL)
   await closeRedis();
   
   io.close();
@@ -169,11 +165,7 @@ process.on('SIGINT', async () => {
 process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   
-  // Clean up all room timers before shutdown
-  const { cleanupAllTimers } = require('./utils/userManager');
-  cleanupAllTimers();
-  
-  // Close Redis connection
+  // Close Redis connection (data persists in Redis with TTL)
   await closeRedis();
   
   io.close();
