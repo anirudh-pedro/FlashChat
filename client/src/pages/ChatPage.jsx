@@ -31,6 +31,7 @@ const ChatPage = () => {
   const roomRef = useRef(room);
   const hasJoinedRef = useRef(false);
   const isInitialConnectionRef = useRef(true); // Track if this is the first connection
+  const isMountedRef = useRef(false); // Track if component is actually mounted
   
   useEffect(() => {
     usernameRef.current = username;
@@ -90,6 +91,7 @@ const ChatPage = () => {
           navigate("/join");
         } else {
           hasJoinedRef.current = true;
+          isMountedRef.current = true; // Mark as truly mounted after successful join
         }
       });
     };
@@ -100,17 +102,34 @@ const ChatPage = () => {
       socketInstance.once('connect', handleConnection);
     }
 
-    // Cleanup only on unmount
+    // Cleanup only on actual unmount (not StrictMode re-render)
     return () => {
       socketInstance.off('connect', handleConnection);
-      if (hasJoinedRef.current) {
-        leaveRoom();
-        hasJoinedRef.current = false;
-      }
-      isInitialConnectionRef.current = true; // Reset for next mount
-      disconnectSocket();
     };
   }, []); // Keep empty - only run once on mount
+
+  // Separate cleanup effect that runs on actual page leave
+  useEffect(() => {
+    const handleBeforeUnload = () => {
+      if (hasJoinedRef.current) {
+        leaveRoom();
+      }
+    };
+
+    window.addEventListener('beforeunload', handleBeforeUnload);
+
+    return () => {
+      window.removeEventListener('beforeunload', handleBeforeUnload);
+      // Only disconnect if we actually joined (prevents StrictMode double-cleanup)
+      if (isMountedRef.current && hasJoinedRef.current) {
+        leaveRoom();
+        hasJoinedRef.current = false;
+        isMountedRef.current = false;
+        isInitialConnectionRef.current = true;
+        disconnectSocket();
+      }
+    };
+  }, []);
 
   useEffect(() => {
     if (!socket) return;
