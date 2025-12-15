@@ -275,8 +275,8 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // Add user to in-memory storage with sanitized inputs
-        const { error, user } = addUser({ id: socket.id, username: sanitizedUsername, room: sanitizedRoom });
+        // Add user to Redis storage with sanitized inputs
+        const { error, user } = await addUser({ id: socket.id, username: sanitizedUsername, room: sanitizedRoom });
         if (error) return callback({ error });
 
         // Join the socket to the specified room
