@@ -4,6 +4,7 @@ const cors = require('cors');
 const dotenv = require('dotenv');
 const socketIO = require('socket.io');
 const { setupSocketHandlers } = require('./socketHandler');
+const { initRedis, closeRedis } = require('./src/config/redis');
 
 // Load environment variables
 dotenv.config();
@@ -132,20 +133,31 @@ const io = socketIO(server, {
 // Set up socket handlers
 setupSocketHandlers(io);
 
-// Set port and start server
-const PORT = process.env.PORT || 5000;
-server.listen(PORT, () => {
-  console.log(`⚡ Server running on port ${PORT}`);
-  console.log(`🔌 Socket.IO ready for connections`);
-});
+// Initialize Redis and start server
+const startServer = async () => {
+  // Initialize Redis connection
+  await initRedis();
+  
+  // Set port and start server
+  const PORT = process.env.PORT || 5000;
+  server.listen(PORT, () => {
+    console.log(`⚡ Server running on port ${PORT}`);
+    console.log(`🔌 Socket.IO ready for connections`);
+  });
+};
+
+startServer();
 
 // Handle server shutdown gracefully
-process.on('SIGINT', () => {
+process.on('SIGINT', async () => {
   console.log('Shutting down server...');
   
   // Clean up all room timers before shutdown
   const { cleanupAllTimers } = require('./utils/userManager');
   cleanupAllTimers();
+  
+  // Close Redis connection
+  await closeRedis();
   
   io.close();
   server.close(() => {
@@ -154,12 +166,15 @@ process.on('SIGINT', () => {
   });
 });
 
-process.on('SIGTERM', () => {
+process.on('SIGTERM', async () => {
   console.log('SIGTERM received, shutting down gracefully...');
   
   // Clean up all room timers before shutdown
   const { cleanupAllTimers } = require('./utils/userManager');
   cleanupAllTimers();
+  
+  // Close Redis connection
+  await closeRedis();
   
   io.close();
   server.close(() => {

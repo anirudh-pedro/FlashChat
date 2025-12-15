@@ -115,7 +115,13 @@ const ChatPage = () => {
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for messages
+    // Listen for chat history (loaded from Redis on join/refresh)
+    const handleChatHistory = (history) => {
+      console.log(`📜 Loaded ${history.length} messages from history`);
+      setMessages(history);
+    };
+
+    // Listen for new messages
     const handleMessage = (message) => {
       setMessages((prevMessages) => [...prevMessages, message]);
     };
@@ -200,6 +206,7 @@ const ChatPage = () => {
       }
     };
     
+    socket.on("chatHistory", handleChatHistory);
     socket.on("message", handleMessage);
     socket.on("roomData", handleRoomData);
     socket.on("userJoined", handleUserJoined);
@@ -212,6 +219,7 @@ const ChatPage = () => {
     socket.on("disconnect", handleDisconnect);
 
     return () => {
+      socket.off("chatHistory", handleChatHistory);
       socket.off("message", handleMessage);
       socket.off("roomData", handleRoomData);
       socket.off("userJoined", handleUserJoined);

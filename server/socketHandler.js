@@ -10,6 +10,14 @@ const {
   ROOM_CAPACITY
 } = require('./utils/userManager');
 
+// Redis message persistence
+const { 
+  saveMessage, 
+  getRecentMessages, 
+  updateMessage: updateMessageInRedis, 
+  deleteMessage: deleteMessageFromRedis 
+} = require('./src/services/messageService');
+
 // ==================== INPUT SANITIZATION ====================
 /**
  * Sanitize user input to prevent XSS (Cross-Site Scripting) attacks
@@ -230,7 +238,7 @@ const setupSocketHandlers = (io) => {
     console.log(`New connection: ${socket.id}`);
     
     // Handle user joining a room
-    socket.on('join', ({ username, room }, callback) => {
+    socket.on('join', async ({ username, room }, callback) => {
       try {
         // Check rate limit for join action
         const rateLimitCheck = checkRateLimit(socket.id, 'join');
@@ -273,10 +281,16 @@ const setupSocketHandlers = (io) => {
         // Join the socket to the specified room
         socket.join(user.room);
 
-        // Send welcome message to user
+        // Fetch chat history from Redis and send to user
+        const chatHistory = await getRecentMessages(user.room);
+        if (chatHistory.length > 0) {
+          socket.emit('chatHistory', chatHistory);
+        }
+
+        // Send welcome message to user (not persisted - it's ephemeral)
         socket.emit('message', {
           user: 'System',
-          text: `Welcome to ${user.room.startsWith('loc_') ? 'the nearby chat' : 'room ' + user.room}!`,
+          text: `Welcome to ${user.room.startsWith('LOC_') ? 'the nearby chat' : 'room ' + user.room}!`,
           createdAt: new Date().toISOString()
         });
 
@@ -389,6 +403,9 @@ const setupSocketHandlers = (io) => {
           createdAt: new Date().toISOString()
         };
 
+        // Save message to Redis for persistence
+        saveMessage(user.room, messageObj);
+
         // Send to everyone in the room including sender
         io.to(user.room).emit('message', messageObj);
         
@@ -400,11 +417,18 @@ const setupSocketHandlers = (io) => {
     });
 
     // Handle message edit
-    socket.on('editMessage', ({ messageId, newText }, callback) => {
+    socket.on('editMessage', async ({ messageId, newText }, callback) => {
       try {
         const user = getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
+          return;
+        }
+
+        // 🔴 SECURITY: Verify message ownership (message ID starts with socket.id)
+        if (!messageId || !messageId.startsWith(socket.id)) {
+          console.warn(`⚠️ Unauthorized edit attempt by ${user.username} on message ${messageId}`);
+          if (callback) callback({ error: 'You can only edit your own messages' });
           return;
         }
 
@@ -427,6 +451,13 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
+        // Update message in Redis (with ownership verification)
+        const result = await updateMessageInRedis(user.room, messageId, socket.id, sanitizedText);
+        if (!result.success) {
+          if (callback) callback({ error: result.error || 'Failed to edit message' });
+          return;
+        }
+
         // Broadcast edit to all users in room
         io.to(user.room).emit('messageEdited', {
           messageId,
@@ -442,11 +473,25 @@ const setupSocketHandlers = (io) => {
     });
 
     // Handle message delete
-    socket.on('deleteMessage', (messageId, callback) => {
+    socket.on('deleteMessage', async (messageId, callback) => {
       try {
         const user = getUser(socket.id);
         if (!user) {
           if (callback) callback({ error: 'User not found' });
+          return;
+        }
+
+        // 🔴 SECURITY: Verify message ownership (message ID starts with socket.id)
+        if (!messageId || !messageId.startsWith(socket.id)) {
+          console.warn(`⚠️ Unauthorized delete attempt by ${user.username} on message ${messageId}`);
+          if (callback) callback({ error: 'You can only delete your own messages' });
+          return;
+        }
+
+        // Delete message from Redis (with ownership verification)
+        const result = await deleteMessageFromRedis(user.room, messageId, socket.id);
+        if (!result.success) {
+          if (callback) callback({ error: result.error || 'Failed to delete message' });
           return;
         }
 
@@ -519,21 +564,25 @@ const setupSocketHandlers = (io) => {
         // Check if it's an image
         const isImage = fileType.startsWith('image/');
 
-        // Create file message object
-        const fileMessage = {
+        // Create file message object for broadcasting (includes base64 data)
+        const fileMessageForBroadcast = {
           id: `${socket.id}-${Date.now()}`, // Unique message ID
           user: user.username,
           type: 'file',
           fileName: sanitizedFileName,
           fileType: fileType,
           fileSize: fileSize,
-          fileData: base64Data,
+          fileData: base64Data, // Include base64 for real-time broadcast
           isImage: isImage,
           createdAt: new Date().toISOString()
         };
 
-        // Send to everyone in the room including sender
-        io.to(user.room).emit('message', fileMessage);
+        // Save file message to Redis (WITHOUT base64 data to save memory)
+        // The messageService will strip fileData automatically
+        saveMessage(user.room, fileMessageForBroadcast);
+
+        // Send to everyone in the room including sender (WITH base64 data)
+        io.to(user.room).emit('message', fileMessageForBroadcast);
         
         console.log(`📁 File shared by ${user.username}: ${sanitizedFileName} (${(fileSize / 1024).toFixed(1)}KB)`);
         
