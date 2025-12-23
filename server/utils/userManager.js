@@ -3,7 +3,7 @@ const users = [];
 
 // Add these variables at the top of the file
 const rooms = new Map(); // To track all active rooms
-const ROOM_CLEANUP_DELAY = 30 * 60 * 1000; // 30 minutes in milliseconds
+const ROOM_CLEANUP_DELAY = 10 * 60 * 1000; // 10 minutes in milliseconds
 
 // ==================== ROOM CAPACITY LIMITS ====================
 /**

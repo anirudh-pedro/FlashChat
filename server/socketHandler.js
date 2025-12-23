@@ -8,6 +8,15 @@ const {
   getRoomInfo,
   checkRoomCapacity,
   isRoomActive,
+  isRoomAdmin,
+  getRoomAdmin,
+  transferAdmin,
+  addPendingUser,
+  getPendingUsers,
+  removePendingUser,
+  clearPendingUsers,
+  scheduleRoomCleanup,
+  cancelRoomCleanup,
   ROOM_CAPACITY
 } = require('./utils/userManagerRedis');
 
@@ -16,7 +25,8 @@ const {
   saveMessage, 
   getRecentMessages, 
   updateMessage: updateMessageInRedis, 
-  deleteMessage: deleteMessageFromRedis 
+  deleteMessage: deleteMessageFromRedis,
+  clearRoomMessages
 } = require('./src/services/messageService');
 
 // ==================== INPUT SANITIZATION ====================
@@ -275,9 +285,42 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // Add user to Redis storage with sanitized inputs
+        // Check if room already has users (admin exists)
+        const currentAdmin = await getRoomAdmin(sanitizedRoom);
+        const roomCount = await getRoomCount(sanitizedRoom);
+        
+        // If room has an admin and users, require approval
+        if (currentAdmin && roomCount > 0) {
+          // Add user to pending list
+          await addPendingUser(sanitizedRoom, {
+            socketId: socket.id,
+            username: sanitizedUsername,
+            requestedAt: new Date().toISOString()
+          });
+          
+          // Notify admin about pending request
+          io.to(currentAdmin).emit('joinRequest', {
+            socketId: socket.id,
+            username: sanitizedUsername,
+            room: sanitizedRoom
+          });
+          
+          // Tell the requesting user they're waiting
+          if (callback) callback({ 
+            pending: true, 
+            message: 'Waiting for admin approval...' 
+          });
+          
+          console.log(`⏳ User ${sanitizedUsername} waiting for approval to join ${sanitizedRoom}`);
+          return;
+        }
+
+        // No admin or empty room - add user directly (they become admin)
         const { error, user } = await addUser({ id: socket.id, username: sanitizedUsername, room: sanitizedRoom });
         if (error) return callback({ error });
+
+        // Cancel any pending room cleanup
+        cancelRoomCleanup(user.room);
 
         // Join the socket to the specified room
         socket.join(user.room);
@@ -308,13 +351,21 @@ const setupSocketHandlers = (io) => {
         // Send updated room data to all users in the room (including capacity info)
         const roomInfo = await getRoomInfo(user.room);
         const usersInRoom = await getUsersInRoom(user.room);
+        const adminSocketId = await getRoomAdmin(user.room);
+        const pendingUsers = await getPendingUsers(user.room);
+        
         io.to(user.room).emit('roomData', {
           room: user.room,
           users: usersInRoom,
           capacity: roomInfo.capacity,
           available: roomInfo.available,
-          isFull: roomInfo.isFull
+          isFull: roomInfo.isFull,
+          adminId: adminSocketId,
+          pendingUsers: pendingUsers
         });
+        
+        // Tell the user if they are admin
+        socket.emit('adminStatus', { isAdmin: user.isAdmin || socket.id === adminSocketId });
 
         if (callback) callback();
       } catch (error) {
@@ -352,6 +403,149 @@ const setupSocketHandlers = (io) => {
         callback({ error: 'Failed to check room capacity' });
       }
     });
+
+    // ==================== ADMIN APPROVAL HANDLERS ====================
+    
+    // Handle admin approving a join request
+    socket.on('approveJoin', async ({ pendingSocketId, room }, callback) => {
+      try {
+        // Verify the approver is the admin
+        const isAdmin = await isRoomAdmin(socket.id, room);
+        if (!isAdmin) {
+          if (callback) callback({ error: 'Only the admin can approve join requests' });
+          return;
+        }
+        
+        // Get pending user info
+        const pendingUser = await removePendingUser(room, pendingSocketId);
+        if (!pendingUser) {
+          if (callback) callback({ error: 'Pending user not found' });
+          return;
+        }
+        
+        // Add the approved user
+        const { error, user } = await addUser({ 
+          id: pendingSocketId, 
+          username: pendingUser.username, 
+          room 
+        });
+        
+        if (error) {
+          // Notify the pending user of rejection
+          io.to(pendingSocketId).emit('joinRejected', { reason: error });
+          if (callback) callback({ error });
+          return;
+        }
+        
+        // Join the socket to the room
+        const pendingSocket = io.sockets.sockets.get(pendingSocketId);
+        if (pendingSocket) {
+          pendingSocket.join(room);
+          
+          // Send chat history
+          const chatHistory = await getRecentMessages(room);
+          if (chatHistory.length > 0) {
+            pendingSocket.emit('chatHistory', chatHistory);
+          }
+          
+          // Welcome message
+          pendingSocket.emit('message', {
+            user: 'System',
+            text: `Welcome to room ${room}! Your join request was approved.`,
+            createdAt: new Date().toISOString()
+          });
+          
+          // Notify the approved user
+          pendingSocket.emit('joinApproved', { room });
+        }
+        
+        // Notify room about new user
+        socket.to(room).emit('message', {
+          user: 'System',
+          text: `${user.username} has joined`,
+          createdAt: new Date().toISOString()
+        });
+        socket.to(room).emit('userJoined', user.username);
+        
+        // Send updated room data
+        const roomInfo = await getRoomInfo(room);
+        const usersInRoom = await getUsersInRoom(room);
+        const adminSocketId = await getRoomAdmin(room);
+        const pendingUsers = await getPendingUsers(room);
+        
+        io.to(room).emit('roomData', {
+          room: room,
+          users: usersInRoom,
+          capacity: roomInfo.capacity,
+          available: roomInfo.available,
+          isFull: roomInfo.isFull,
+          adminId: adminSocketId,
+          pendingUsers: pendingUsers
+        });
+        
+        console.log(`✅ Admin approved ${user.username} to join ${room}`);
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in approveJoin:', error);
+        if (callback) callback({ error: 'Failed to approve join request' });
+      }
+    });
+    
+    // Handle admin rejecting a join request
+    socket.on('rejectJoin', async ({ pendingSocketId, room, reason }, callback) => {
+      try {
+        // Verify the rejecter is the admin
+        const isAdmin = await isRoomAdmin(socket.id, room);
+        if (!isAdmin) {
+          if (callback) callback({ error: 'Only the admin can reject join requests' });
+          return;
+        }
+        
+        // Remove from pending list
+        const pendingUser = await removePendingUser(room, pendingSocketId);
+        if (!pendingUser) {
+          if (callback) callback({ error: 'Pending user not found' });
+          return;
+        }
+        
+        // Notify the rejected user
+        io.to(pendingSocketId).emit('joinRejected', { 
+          reason: reason || 'Your join request was denied by the room admin' 
+        });
+        
+        // Send updated pending list to admin
+        const pendingUsers = await getPendingUsers(room);
+        socket.emit('pendingUsersUpdate', { pendingUsers });
+        
+        console.log(`❌ Admin rejected ${pendingUser.username} from joining ${room}`);
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in rejectJoin:', error);
+        if (callback) callback({ error: 'Failed to reject join request' });
+      }
+    });
+    
+    // Handle user cancelling their join request
+    socket.on('cancelJoinRequest', async ({ room }, callback) => {
+      try {
+        const pendingUser = await removePendingUser(room, socket.id);
+        if (pendingUser) {
+          // Notify admin about cancellation
+          const adminSocketId = await getRoomAdmin(room);
+          if (adminSocketId) {
+            const pendingUsers = await getPendingUsers(room);
+            io.to(adminSocketId).emit('pendingUsersUpdate', { pendingUsers });
+          }
+          console.log(`🚫 User ${pendingUser.username} cancelled join request for ${room}`);
+        }
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in cancelJoinRequest:', error);
+        if (callback) callback({ error: 'Failed to cancel join request' });
+      }
+    });
+    
+    // ==================== END ADMIN APPROVAL HANDLERS ====================
     
     // Handle messages
     socket.on('sendMessage', async (message, callback) => {
@@ -647,6 +841,9 @@ const setupSocketHandlers = (io) => {
 
   // Helper function for handling a user leaving
   const handleUserLeaving = async (socket, user) => {
+    // Check if the leaving user was the admin
+    const wasAdmin = await isRoomAdmin(socket.id, user.room);
+    
     // Notify other users in the room
     socket.to(user.room).emit('message', {
       user: 'System',
@@ -657,21 +854,58 @@ const setupSocketHandlers = (io) => {
     // Notify for toast
     socket.to(user.room).emit('userLeft', user.username);
 
-    // Send updated room data (including capacity info)
+    // Get updated room info
     const roomInfo = await getRoomInfo(user.room);
     const usersInRoom = await getUsersInRoom(user.room);
+    
+    // If the admin left, transfer to another user
+    let newAdminId = await getRoomAdmin(user.room);
+    if (wasAdmin && usersInRoom.length > 0) {
+      // Transfer admin to first remaining user
+      const newAdmin = usersInRoom[0];
+      await transferAdmin(user.room, newAdmin.id);
+      newAdminId = newAdmin.id;
+      
+      // Notify new admin
+      io.to(newAdmin.id).emit('adminStatus', { isAdmin: true });
+      io.to(user.room).emit('message', {
+        user: 'System',
+        text: `${newAdmin.username} is now the room admin`,
+        createdAt: new Date().toISOString()
+      });
+      
+      console.log(`👑 Admin transferred to ${newAdmin.username} in room ${user.room}`);
+    }
+    
+    // Get pending users for room data
+    const pendingUsers = await getPendingUsers(user.room);
+    
+    // Send updated room data (including capacity info and admin)
     io.to(user.room).emit('roomData', {
       room: user.room,
       users: usersInRoom,
       capacity: roomInfo.capacity,
       available: roomInfo.available,
-      isFull: roomInfo.isFull
+      isFull: roomInfo.isFull,
+      adminId: newAdminId,
+      pendingUsers: pendingUsers
     });
 
-    // If room is now empty, we could clean it up
-    // (Redis TTL will handle cleanup automatically)
+    // If room is now empty, schedule cleanup
     if (usersInRoom.length === 0) {
-      console.log(`Room ${user.room} is now empty (will be cleaned up by Redis TTL)`);
+      console.log(`Room ${user.room} is now empty, scheduling cleanup in 10 minutes`);
+      
+      // Clear any pending join requests
+      await clearPendingUsers(user.room);
+      
+      // Schedule room cleanup with message erasure
+      scheduleRoomCleanup(user.room, async (roomId) => {
+        // Erase all messages when room is cleaned up
+        const cleared = await clearRoomMessages(roomId);
+        if (cleared) {
+          console.log(`🗑️ Messages erased for room ${roomId}`);
+        }
+      });
     }
   };
 

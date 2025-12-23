@@ -7,7 +7,7 @@ import UsersList from "../components/UsersList";
 import TypingIndicator from "../components/TypingIndicator";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom } from "../socket";
+import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin } from "../socket";
 import { formatRoomName, isLocationRoom } from "../utils/roomUtils";
 
 const ChatPage = () => {
@@ -20,6 +20,9 @@ const ChatPage = () => {
   const [typingUsers, setTypingUsers] = useState([]);
   const [editingMessage, setEditingMessage] = useState(null); // { id, text }
   const [viewportHeight, setViewportHeight] = useState('100%');
+  const [isAdmin, setIsAdmin] = useState(false);
+  const [pendingUsers, setPendingUsers] = useState([]);
+  const [showPendingPanel, setShowPendingPanel] = useState(false);
   
   const params = new URLSearchParams(location.search);
   const username = params.get("username");
@@ -161,8 +164,34 @@ const ChatPage = () => {
     };
 
     // Listen for room data (users list)
-    const handleRoomData = ({ users }) => {
+    const handleRoomData = ({ users, pendingUsers: pending }) => {
       setUsers(users);
+      if (pending) {
+        setPendingUsers(pending);
+      }
+    };
+    
+    // Handle admin status update
+    const handleAdminStatus = ({ isAdmin: adminStatus }) => {
+      setIsAdmin(adminStatus);
+      if (adminStatus) {
+        toast.success("You are the room admin");
+      }
+    };
+    
+    // Handle incoming join request (admin only)
+    const handleJoinRequest = ({ socketId, username: requestingUser, room: requestRoom }) => {
+      toast.info(`${requestingUser} wants to join the room`, {
+        autoClose: false,
+        closeOnClick: false,
+      });
+      setPendingUsers(prev => [...prev, { socketId, username: requestingUser }]);
+      setShowPendingPanel(true);
+    };
+    
+    // Handle pending users update
+    const handlePendingUsersUpdate = ({ pendingUsers: updated }) => {
+      setPendingUsers(updated);
     };
 
     // Listen for user joined notifications
@@ -251,6 +280,9 @@ const ChatPage = () => {
     socket.on("messageDeleted", handleMessageDeleted);
     socket.on("connect", handleReconnect);
     socket.on("disconnect", handleDisconnect);
+    socket.on("adminStatus", handleAdminStatus);
+    socket.on("joinRequest", handleJoinRequest);
+    socket.on("pendingUsersUpdate", handlePendingUsersUpdate);
 
     return () => {
       socket.off("chatHistory", handleChatHistory);
@@ -264,6 +296,9 @@ const ChatPage = () => {
       socket.off("messageDeleted", handleMessageDeleted);
       socket.off("connect", handleReconnect);
       socket.off("disconnect", handleDisconnect);
+      socket.off("adminStatus", handleAdminStatus);
+      socket.off("joinRequest", handleJoinRequest);
+      socket.off("pendingUsersUpdate", handlePendingUsersUpdate);
     };
   }, [socket, navigate]); // Only socket and navigate as dependencies
 
@@ -281,6 +316,28 @@ const ChatPage = () => {
     socketInstance.emit("sendFile", fileData, (response) => {
       if (response && response.error) {
         toast.error(response.error);
+      }
+    });
+  };
+
+  // Admin approve join request
+  const handleApproveJoin = (pendingSocketId) => {
+    approveJoin(pendingSocketId, room, (response) => {
+      if (response && response.error) {
+        toast.error(response.error);
+      } else {
+        toast.success("User approved");
+      }
+    });
+  };
+
+  // Admin reject join request
+  const handleRejectJoin = (pendingSocketId) => {
+    rejectJoin(pendingSocketId, room, null, (response) => {
+      if (response && response.error) {
+        toast.error(response.error);
+      } else {
+        toast.info("Join request rejected");
       }
     });
   };
@@ -369,7 +426,51 @@ const ChatPage = () => {
         onLeaveRoom={leaveCurrentRoom}
         onCopyRoomId={copyRoomId}
         isLocationBased={isLocationBased}
+        isAdmin={isAdmin}
+        pendingCount={pendingUsers.length}
+        onTogglePending={() => setShowPendingPanel(!showPendingPanel)}
       />
+      
+      {/* Pending Users Panel (Admin only) */}
+      {isAdmin && showPendingPanel && pendingUsers.length > 0 && (
+        <div className="bg-neutral-900 border-b border-neutral-800 px-4 py-3">
+          <div className="flex items-center justify-between mb-2">
+            <h3 className="text-white font-medium text-sm">
+              Pending Join Requests ({pendingUsers.length})
+            </h3>
+            <button 
+              onClick={() => setShowPendingPanel(false)}
+              className="text-neutral-400 hover:text-white transition-colors"
+            >
+              ✕
+            </button>
+          </div>
+          <div className="space-y-2 max-h-40 overflow-y-auto">
+            {pendingUsers.map((pending) => (
+              <div 
+                key={pending.socketId} 
+                className="flex items-center justify-between bg-neutral-800 rounded-lg px-3 py-2"
+              >
+                <span className="text-white text-sm">{pending.username}</span>
+                <div className="flex gap-2">
+                  <button
+                    onClick={() => handleApproveJoin(pending.socketId)}
+                    className="px-3 py-1 bg-emerald-600 hover:bg-emerald-500 text-white text-xs rounded-md transition-colors"
+                  >
+                    Approve
+                  </button>
+                  <button
+                    onClick={() => handleRejectJoin(pending.socketId)}
+                    className="px-3 py-1 bg-red-600 hover:bg-red-500 text-white text-xs rounded-md transition-colors"
+                  >
+                    Reject
+                  </button>
+                </div>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
       
       <div className="flex flex-1 overflow-hidden relative min-h-0">
         {/* Main chat area */}

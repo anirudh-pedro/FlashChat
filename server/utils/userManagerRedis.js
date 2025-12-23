@@ -4,12 +4,14 @@
  * Schema:
  * - user:<socketId>        → HASH { username, room, joinedAt }
  * - room:<roomId>:users    → SET of socketIds
- * - room:<roomId>:meta     → HASH { createdAt, lastActivity }
+ * - room:<roomId>:meta     → HASH { createdAt, lastActivity, admin }
+ * - room:<roomId>:pending  → SET of JSON-stringified pending users
  * 
  * Benefits:
  * - Users survive server restart (if they reconnect)
  * - Room state is persistent
  * - Horizontal scaling ready (multiple server instances)
+ * - Admin approval system for room access
  */
 
 const { getRedisClient, isRedisConnected } = require('../src/config/redis');
@@ -24,14 +26,19 @@ const ROOM_CAPACITY = {
 
 const USER_TTL = 24 * 60 * 60;        // 24 hours - user data expiry
 const ROOM_TTL = 7 * 24 * 60 * 60;    // 7 days - room data expiry
+const ROOM_CLEANUP_DELAY = 10 * 60 * 1000; // 10 minutes - room cleanup after empty
 
 // ==================== KEY GENERATORS ====================
 
 const keys = {
   user: (socketId) => `user:${socketId}`,
   roomUsers: (roomId) => `room:${roomId}:users`,
-  roomMeta: (roomId) => `room:${roomId}:meta`
+  roomMeta: (roomId) => `room:${roomId}:meta`,
+  roomPending: (roomId) => `room:${roomId}:pending`
 };
+
+// In-memory cleanup timers for rooms (when empty)
+const roomCleanupTimers = new Map();
 
 // ==================== USER OPERATIONS ====================
 
@@ -93,25 +100,40 @@ const addUser = async ({ id, username, room }) => {
     await redis.sAdd(roomUsersKey, id);
     await redis.expire(roomUsersKey, ROOM_TTL);
 
-    // Update room metadata
+    // Update room metadata - first user becomes admin
     const roomMetaKey = keys.roomMeta(room);
     const roomMeta = await redis.hGetAll(roomMetaKey);
     
-    if (!roomMeta || !roomMeta.createdAt) {
+    const isNewRoom = !roomMeta || !roomMeta.createdAt;
+    const isAdmin = isNewRoom || !roomMeta.admin;
+    
+    if (isNewRoom) {
       await redis.hSet(roomMetaKey, {
         createdAt: new Date().toISOString(),
-        lastActivity: new Date().toISOString()
+        lastActivity: new Date().toISOString(),
+        admin: id // First user is the admin
       });
     } else {
       await redis.hSet(roomMetaKey, 'lastActivity', new Date().toISOString());
+      // If no admin set, make this user admin
+      if (!roomMeta.admin) {
+        await redis.hSet(roomMetaKey, 'admin', id);
+      }
     }
     await redis.expire(roomMetaKey, ROOM_TTL);
 
+    // Clear any cleanup timer for this room
+    if (roomCleanupTimers.has(room)) {
+      clearTimeout(roomCleanupTimers.get(room));
+      roomCleanupTimers.delete(room);
+      console.log(`⏰ Cancelled cleanup timer for room ${room}`);
+    }
+
     // Log
     const updatedCapacity = await checkRoomCapacity(room);
-    console.log(`✅ User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)`);
+    console.log(`✅ User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)${isAdmin ? ' [ADMIN]' : ''}`);
 
-    return { user: { id, username, room } };
+    return { user: { id, username, room, isAdmin } };
   } catch (error) {
     console.error('❌ Error adding user to Redis:', error.message);
     // Fallback to in-memory
@@ -398,6 +420,277 @@ const getActiveRoomIds = async () => {
   }
 };
 
+// ==================== ADMIN FUNCTIONS ====================
+
+/**
+ * Check if a user is the admin of a room
+ * @param {string} socketId - Socket ID
+ * @param {string} room - Room ID
+ * @returns {Promise<boolean>}
+ */
+const isRoomAdmin = async (socketId, room) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    // In-memory fallback
+    const roomData = inMemoryRooms.get(room);
+    return roomData && roomData.admin === socketId;
+  }
+
+  try {
+    const redis = getRedisClient();
+    const roomMeta = await redis.hGetAll(keys.roomMeta(room));
+    return roomMeta && roomMeta.admin === socketId;
+  } catch (error) {
+    console.error('❌ Error checking room admin:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Get admin socket ID of a room
+ * @param {string} room - Room ID
+ * @returns {Promise<string|null>}
+ */
+const getRoomAdmin = async (room) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    return roomData ? roomData.admin : null;
+  }
+
+  try {
+    const redis = getRedisClient();
+    const roomMeta = await redis.hGetAll(keys.roomMeta(room));
+    return roomMeta ? roomMeta.admin : null;
+  } catch (error) {
+    console.error('❌ Error getting room admin:', error.message);
+    return null;
+  }
+};
+
+/**
+ * Transfer admin to another user
+ * @param {string} room - Room ID
+ * @param {string} newAdminId - New admin's socket ID
+ * @returns {Promise<boolean>}
+ */
+const transferAdmin = async (room, newAdminId) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    if (roomData) {
+      roomData.admin = newAdminId;
+      return true;
+    }
+    return false;
+  }
+
+  try {
+    const redis = getRedisClient();
+    await redis.hSet(keys.roomMeta(room), 'admin', newAdminId);
+    return true;
+  } catch (error) {
+    console.error('❌ Error transferring admin:', error.message);
+    return false;
+  }
+};
+
+// ==================== PENDING USERS FUNCTIONS ====================
+
+/**
+ * Add a user to pending list
+ * @param {string} room - Room ID
+ * @param {Object} pendingUser - { socketId, username }
+ * @returns {Promise<boolean>}
+ */
+const addPendingUser = async (room, pendingUser) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    // In-memory fallback
+    if (!inMemoryRooms.has(room)) {
+      inMemoryRooms.set(room, { userCount: 0, pending: [] });
+    }
+    const roomData = inMemoryRooms.get(room);
+    if (!roomData.pending) roomData.pending = [];
+    roomData.pending.push(pendingUser);
+    return true;
+  }
+
+  try {
+    const redis = getRedisClient();
+    await redis.sAdd(keys.roomPending(room), JSON.stringify(pendingUser));
+    await redis.expire(keys.roomPending(room), ROOM_TTL);
+    return true;
+  } catch (error) {
+    console.error('❌ Error adding pending user:', error.message);
+    return false;
+  }
+};
+
+/**
+ * Get all pending users for a room
+ * @param {string} room - Room ID
+ * @returns {Promise<Array>}
+ */
+const getPendingUsers = async (room) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    return roomData && roomData.pending ? roomData.pending : [];
+  }
+
+  try {
+    const redis = getRedisClient();
+    const pendingData = await redis.sMembers(keys.roomPending(room));
+    return pendingData.map(json => {
+      try {
+        return JSON.parse(json);
+      } catch (e) {
+        return null;
+      }
+    }).filter(p => p !== null);
+  } catch (error) {
+    console.error('❌ Error getting pending users:', error.message);
+    return [];
+  }
+};
+
+/**
+ * Remove a user from pending list
+ * @param {string} room - Room ID
+ * @param {string} socketId - Socket ID of the pending user
+ * @returns {Promise<Object|null>} - Removed pending user or null
+ */
+const removePendingUser = async (room, socketId) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    if (roomData && roomData.pending) {
+      const index = roomData.pending.findIndex(p => p.socketId === socketId);
+      if (index !== -1) {
+        return roomData.pending.splice(index, 1)[0];
+      }
+    }
+    return null;
+  }
+
+  try {
+    const redis = getRedisClient();
+    const pendingData = await redis.sMembers(keys.roomPending(room));
+    
+    for (const json of pendingData) {
+      try {
+        const pending = JSON.parse(json);
+        if (pending.socketId === socketId) {
+          await redis.sRem(keys.roomPending(room), json);
+          return pending;
+        }
+      } catch (e) {
+        // Skip invalid JSON
+      }
+    }
+    return null;
+  } catch (error) {
+    console.error('❌ Error removing pending user:', error.message);
+    return null;
+  }
+};
+
+/**
+ * Clear all pending users for a room
+ * @param {string} room - Room ID
+ * @returns {Promise<boolean>}
+ */
+const clearPendingUsers = async (room) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    if (roomData) {
+      roomData.pending = [];
+    }
+    return true;
+  }
+
+  try {
+    const redis = getRedisClient();
+    await redis.del(keys.roomPending(room));
+    return true;
+  } catch (error) {
+    console.error('❌ Error clearing pending users:', error.message);
+    return false;
+  }
+};
+
+// ==================== ROOM CLEANUP FUNCTIONS ====================
+
+/**
+ * Schedule room cleanup (called when room becomes empty)
+ * @param {string} room - Room ID
+ * @param {Function} onCleanup - Callback when room is cleaned up
+ */
+const scheduleRoomCleanup = (room, onCleanup) => {
+  room = room.trim().toUpperCase();
+  
+  // Clear any existing timer
+  if (roomCleanupTimers.has(room)) {
+    clearTimeout(roomCleanupTimers.get(room));
+  }
+  
+  console.log(`⏰ Scheduling cleanup for room ${room} in 10 minutes`);
+  
+  const timer = setTimeout(async () => {
+    const usersInRoom = await getUsersInRoom(room);
+    
+    if (usersInRoom.length === 0) {
+      console.log(`🗑️ Cleaning up empty room ${room} after 10 minutes`);
+      
+      // Call cleanup callback (to erase messages)
+      if (onCleanup) {
+        await onCleanup(room);
+      }
+      
+      // Clean up Redis keys
+      if (isRedisConnected()) {
+        try {
+          const redis = getRedisClient();
+          await redis.del(keys.roomMeta(room));
+          await redis.del(keys.roomUsers(room));
+          await redis.del(keys.roomPending(room));
+        } catch (error) {
+          console.error('❌ Error cleaning up room keys:', error.message);
+        }
+      }
+      
+      // Clean up in-memory
+      inMemoryRooms.delete(room);
+      roomCleanupTimers.delete(room);
+    }
+  }, ROOM_CLEANUP_DELAY);
+  
+  roomCleanupTimers.set(room, timer);
+};
+
+/**
+ * Cancel scheduled room cleanup
+ * @param {string} room - Room ID
+ */
+const cancelRoomCleanup = (room) => {
+  room = room.trim().toUpperCase();
+  
+  if (roomCleanupTimers.has(room)) {
+    clearTimeout(roomCleanupTimers.get(room));
+    roomCleanupTimers.delete(room);
+    console.log(`⏰ Cancelled cleanup timer for room ${room}`);
+  }
+};
+
 module.exports = {
   addUser,
   removeUser,
@@ -410,5 +703,18 @@ module.exports = {
   getActiveRoomIds,
   reattachUser,
   cleanupAllTimers,
-  ROOM_CAPACITY
+  // Admin functions
+  isRoomAdmin,
+  getRoomAdmin,
+  transferAdmin,
+  // Pending user functions
+  addPendingUser,
+  getPendingUsers,
+  removePendingUser,
+  clearPendingUsers,
+  // Room cleanup
+  scheduleRoomCleanup,
+  cancelRoomCleanup,
+  ROOM_CAPACITY,
+  ROOM_CLEANUP_DELAY
 };

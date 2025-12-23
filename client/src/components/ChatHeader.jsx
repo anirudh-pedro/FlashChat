@@ -1,5 +1,5 @@
 import React from "react";
-import { FaUsers, FaSignOutAlt, FaCopy, FaMapMarkerAlt, FaKey, FaBolt } from "react-icons/fa";
+import { FaUsers, FaSignOutAlt, FaCopy, FaMapMarkerAlt, FaKey, FaBolt, FaCrown, FaBell } from "react-icons/fa";
 
 const ChatHeader = ({ 
   room, 
@@ -8,7 +8,10 @@ const ChatHeader = ({
   onToggleUsers, 
   onLeaveRoom, 
   onCopyRoomId,
-  isLocationBased
+  isLocationBased,
+  isAdmin,
+  pendingCount,
+  onTogglePending
 }) => {
   return (
     <header className="bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-800 text-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 shadow-xl flex-shrink-0" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
@@ -35,6 +38,12 @@ const ChatHeader = ({
                 <FaKey className="text-white/70 flex-shrink-0 text-sm" />
               )}
               <span className="font-semibold text-sm md:text-base truncate">{room}</span>
+              {isAdmin && (
+                <span className="flex items-center gap-1 bg-amber-500/20 text-amber-400 px-2 py-0.5 rounded-full text-xs flex-shrink-0">
+                  <FaCrown className="text-[10px]" />
+                  <span className="hidden sm:inline">Admin</span>
+                </span>
+              )}
               {!isLocationBased && joinMethod !== "location" && (
                 <button 
                   onClick={onCopyRoomId}
@@ -54,6 +63,20 @@ const ChatHeader = ({
         
         {/* Right: Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
+          {/* Pending Requests Button (Admin only) */}
+          {isAdmin && pendingCount > 0 && (
+            <button 
+              onClick={onTogglePending}
+              className="relative flex items-center gap-2 bg-amber-500/20 hover:bg-amber-500/30 rounded-lg px-3 py-2 transition-all cursor-pointer"
+              aria-label="Pending join requests"
+            >
+              <FaBell className="text-amber-400 text-sm" />
+              <span className="absolute -top-1 -right-1 bg-red-500 text-white text-xs w-5 h-5 rounded-full flex items-center justify-center font-bold">
+                {pendingCount}
+              </span>
+            </button>
+          )}
+          
           <button 
             onClick={onToggleUsers}
             className="flex items-center gap-2 bg-white/10 hover:bg-white/20 rounded-lg px-3 py-2 transition-all cursor-pointer"

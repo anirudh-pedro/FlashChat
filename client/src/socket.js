@@ -93,11 +93,32 @@ export const leaveRoom = () => {
   socket.emit('leaveRoom');
 };
 
+// Approve a join request (admin only)
+export const approveJoin = (pendingSocketId, room, callback) => {
+  if (!socket) return;
+  socket.emit('approveJoin', { pendingSocketId, room }, callback);
+};
+
+// Reject a join request (admin only)
+export const rejectJoin = (pendingSocketId, room, reason, callback) => {
+  if (!socket) return;
+  socket.emit('rejectJoin', { pendingSocketId, room, reason }, callback);
+};
+
+// Cancel pending join request
+export const cancelJoinRequest = (room, callback) => {
+  if (!socket) return;
+  socket.emit('cancelJoinRequest', { room }, callback);
+};
+
 export default {
   initSocket,
   getSocket,
   disconnectSocket,
   joinRoom,
   sendMessage,
-  leaveRoom
+  leaveRoom,
+  approveJoin,
+  rejectJoin,
+  cancelJoinRequest
 };
