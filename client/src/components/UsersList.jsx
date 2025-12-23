@@ -1,7 +1,7 @@
 import React from "react";
-import { FaTimes, FaCircle, FaArrowLeft } from "react-icons/fa";
+import { FaTimes, FaCircle, FaArrowLeft, FaUserSlash } from "react-icons/fa";
 
-const UsersList = ({ users, currentUser, onClose }) => {
+const UsersList = ({ users, currentUser, onClose, isAdmin, onKickUser }) => {
   return (
     <div className="w-full sm:w-72 md:w-80 h-full bg-neutral-900/95 backdrop-blur-sm border-l border-neutral-800 shadow-2xl flex flex-col">
       <div className="flex items-center justify-between px-5 py-4 border-b border-neutral-800">
@@ -45,7 +45,16 @@ const UsersList = ({ users, currentUser, onClose }) => {
                 )}
               </div>
               
-              <div className="flex items-center gap-1.5 flex-shrink-0">
+              <div className="flex items-center gap-2 flex-shrink-0">
+                {isAdmin && user.username !== currentUser && (
+                  <button
+                    onClick={() => onKickUser && onKickUser(user.id)}
+                    className="p-1.5 text-red-400 hover:text-red-300 hover:bg-red-500/20 rounded-lg transition-colors cursor-pointer"
+                    title="Remove user"
+                  >
+                    <FaUserSlash size={12} />
+                  </button>
+                )}
                 <FaCircle className="text-green-500 animate-pulse" size={8} />
               </div>
             </li>

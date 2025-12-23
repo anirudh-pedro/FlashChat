@@ -111,6 +111,12 @@ export const cancelJoinRequest = (room, callback) => {
   socket.emit('cancelJoinRequest', { room }, callback);
 };
 
+// Kick a user from room (admin only)
+export const kickUser = (targetSocketId, room, callback) => {
+  if (!socket) return;
+  socket.emit('kickUser', { targetSocketId, room }, callback);
+};
+
 export default {
   initSocket,
   getSocket,
@@ -120,5 +126,6 @@ export default {
   leaveRoom,
   approveJoin,
   rejectJoin,
-  cancelJoinRequest
+  cancelJoinRequest,
+  kickUser
 };

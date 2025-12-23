@@ -545,6 +545,72 @@ const setupSocketHandlers = (io) => {
       }
     });
     
+    // Handle admin kicking a user
+    socket.on('kickUser', async ({ targetSocketId, room }, callback) => {
+      try {
+        // Verify the kicker is the admin
+        const isAdmin = await isRoomAdmin(socket.id, room);
+        if (!isAdmin) {
+          if (callback) callback({ error: 'Only the admin can kick users' });
+          return;
+        }
+        
+        // Can't kick yourself
+        if (targetSocketId === socket.id) {
+          if (callback) callback({ error: 'You cannot kick yourself' });
+          return;
+        }
+        
+        // Get the target user info
+        const targetUser = await getUser(targetSocketId);
+        if (!targetUser || targetUser.room !== room) {
+          if (callback) callback({ error: 'User not found in this room' });
+          return;
+        }
+        
+        // Remove the user
+        await removeUser(targetSocketId);
+        
+        // Get the target socket and make it leave the room
+        const targetSocket = io.sockets.sockets.get(targetSocketId);
+        if (targetSocket) {
+          targetSocket.leave(room);
+          // Notify the kicked user
+          targetSocket.emit('kicked', { reason: 'You have been removed from the room by the admin' });
+        }
+        
+        // Notify room about user removal
+        io.to(room).emit('message', {
+          user: 'System',
+          text: `${targetUser.username} was removed from the room`,
+          createdAt: new Date().toISOString()
+        });
+        io.to(room).emit('userLeft', targetUser.username);
+        
+        // Send updated room data
+        const roomInfo = await getRoomInfo(room);
+        const usersInRoom = await getUsersInRoom(room);
+        const adminSocketId = await getRoomAdmin(room);
+        const pendingUsers = await getPendingUsers(room);
+        
+        io.to(room).emit('roomData', {
+          room: room,
+          users: usersInRoom,
+          capacity: roomInfo.capacity,
+          available: roomInfo.available,
+          isFull: roomInfo.isFull,
+          adminId: adminSocketId,
+          pendingUsers: pendingUsers
+        });
+        
+        console.log(`🚫 Admin kicked ${targetUser.username} from ${room}`);
+        if (callback) callback({ success: true });
+      } catch (error) {
+        console.error('Error in kickUser:', error);
+        if (callback) callback({ error: 'Failed to kick user' });
+      }
+    });
+    
     // ==================== END ADMIN APPROVAL HANDLERS ====================
     
     // Handle messages

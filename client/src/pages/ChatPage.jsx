@@ -7,7 +7,7 @@ import UsersList from "../components/UsersList";
 import TypingIndicator from "../components/TypingIndicator";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin, cancelJoinRequest } from "../socket";
+import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin, cancelJoinRequest, kickUser } from "../socket";
 import { formatRoomName, isLocationRoom } from "../utils/roomUtils";
 import { FaSpinner, FaTimes } from "react-icons/fa";
 
@@ -214,6 +214,13 @@ const ChatPage = () => {
       toast.error(reason || "Your join request was rejected");
       setTimeout(() => navigate("/join"), 2000);
     };
+    
+    // Handle being kicked from the room
+    const handleKicked = ({ reason }) => {
+      toast.error(reason || "You have been removed from the room");
+      hasJoinedRef.current = false;
+      setTimeout(() => navigate("/join"), 2000);
+    };
 
     // Listen for user joined notifications
     const handleUserJoined = (username) => {
@@ -306,6 +313,7 @@ const ChatPage = () => {
     socket.on("pendingUsersUpdate", handlePendingUsersUpdate);
     socket.on("joinApproved", handleJoinApproved);
     socket.on("joinRejected", handleJoinRejected);
+    socket.on("kicked", handleKicked);
 
     return () => {
       socket.off("chatHistory", handleChatHistory);
@@ -324,6 +332,7 @@ const ChatPage = () => {
       socket.off("pendingUsersUpdate", handlePendingUsersUpdate);
       socket.off("joinApproved", handleJoinApproved);
       socket.off("joinRejected", handleJoinRejected);
+      socket.off("kicked", handleKicked);
     };
   }, [socket, navigate]); // Only socket and navigate as dependencies
 
@@ -563,7 +572,17 @@ const ChatPage = () => {
             <UsersList 
               users={users} 
               currentUser={username} 
-              onClose={toggleUsersList} 
+              onClose={toggleUsersList}
+              isAdmin={isAdmin}
+              onKickUser={(targetSocketId) => {
+                kickUser(targetSocketId, room, (response) => {
+                  if (response && response.error) {
+                    toast.error(response.error);
+                  } else {
+                    toast.success("User removed from room");
+                  }
+                });
+              }}
             />
           </div>
         )}
