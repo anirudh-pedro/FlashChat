@@ -1,10 +1,10 @@
 import React, { useState, useEffect } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { FaKey, FaMapMarkerAlt, FaRandom, FaCopy, FaCheck, FaTimes, FaSpinner } from 'react-icons/fa';
+import { FaKey, FaMapMarkerAlt, FaRandom, FaCopy, FaCheck } from 'react-icons/fa';
 import { HiLightningBolt } from 'react-icons/hi';
 import { generateUniqueRoomId } from '../utils/roomUtils';
 import { getLocationBasedRoom } from '../utils/geolocation';
-import { initSocket, getSocket, cancelJoinRequest } from '../socket';
+import { initSocket } from '../socket';
 
 const getServerUrl = () => {
   if (typeof window !== 'undefined') {
@@ -24,8 +24,6 @@ const JoinPage = () => {
   const [loadingStep, setLoadingStep] = useState('');
   const [error, setError] = useState('');
   const [copied, setCopied] = useState(false);
-  const [isPending, setIsPending] = useState(false);
-  const [pendingRoom, setPendingRoom] = useState('');
   
   const navigate = useNavigate();
 
@@ -37,43 +35,6 @@ const JoinPage = () => {
     };
     wakeUpServer();
   }, []);
-
-  // Listen for join approval/rejection when pending
-  useEffect(() => {
-    if (!isPending) return;
-    
-    const socket = getSocket();
-    if (!socket) return;
-    
-    const handleJoinApproved = ({ room }) => {
-      setIsPending(false);
-      setPendingRoom('');
-      const normalizedUsername = username.trim().toLowerCase();
-      navigate(`/chat?room=${room}&username=${normalizedUsername}&joinMethod=roomId`);
-    };
-    
-    const handleJoinRejected = ({ reason }) => {
-      setIsPending(false);
-      setPendingRoom('');
-      setError(reason || 'Your join request was rejected');
-    };
-    
-    socket.on('joinApproved', handleJoinApproved);
-    socket.on('joinRejected', handleJoinRejected);
-    
-    return () => {
-      socket.off('joinApproved', handleJoinApproved);
-      socket.off('joinRejected', handleJoinRejected);
-    };
-  }, [isPending, username, navigate]);
-
-  const handleCancelPending = () => {
-    if (pendingRoom) {
-      cancelJoinRequest(pendingRoom, () => {});
-    }
-    setIsPending(false);
-    setPendingRoom('');
-  };
 
   const handleGenerateRandomRoomId = async () => {
     setIsLoading(true);
@@ -176,105 +137,15 @@ const JoinPage = () => {
         return;
       }
       
-      setIsLoading(true);
-      setError('');
+      const normalizedUsername = username.trim().toLowerCase();
+      const normalizedRoom = roomId.trim().toUpperCase();
       
-      try {
-        const socket = initSocket();
-        
-        if (!socket.connected) {
-          await new Promise((resolve, reject) => {
-            const timeout = setTimeout(() => {
-              socket.off('connect', onConnect);
-              reject(new Error('Connection timeout'));
-            }, 10000);
-            
-            const onConnect = () => {
-              clearTimeout(timeout);
-              resolve();
-            };
-            
-            socket.once('connect', onConnect);
-            if (socket.connected) {
-              clearTimeout(timeout);
-              resolve();
-            }
-          });
-        }
-        
-        const normalizedUsername = username.trim().toLowerCase();
-        const normalizedRoom = roomId.trim().toUpperCase();
-        
-        // Try to join the room
-        socket.emit('join', { username: normalizedUsername, room: normalizedRoom }, (response) => {
-          setIsLoading(false);
-          
-          if (response && response.error) {
-            setError(response.error);
-          } else if (response && response.pending) {
-            // Waiting for admin approval
-            setIsPending(true);
-            setPendingRoom(normalizedRoom);
-          } else {
-            // Successfully joined
-            navigate(`/chat?room=${normalizedRoom}&username=${normalizedUsername}&joinMethod=roomId`);
-          }
-        });
-      } catch (err) {
-        setIsLoading(false);
-        setError('Connection failed. Try again.');
-      }
+      // Navigate to chat page - actual join will happen there
+      navigate(`/chat?room=${normalizedRoom}&username=${normalizedUsername}&joinMethod=roomId`);
     } else {
       handleJoinByLocation();
     }
   };
-
-  // Pending approval overlay
-  if (isPending) {
-    return (
-      <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-        {/* Same wave background */}
-        <div className="absolute inset-0 overflow-hidden pointer-events-none">
-          <svg className="absolute w-full h-full" preserveAspectRatio="none" viewBox="0 0 1440 800">
-            <path 
-              className="animate-wave-path-1"
-              fill="rgba(255,255,255,0.03)"
-              d="M0,600 C320,700 420,500 720,550 C1020,600 1200,700 1440,650 L1440,800 L0,800 Z"
-            />
-            <path 
-              className="animate-wave-path-2"
-              fill="rgba(255,255,255,0.04)"
-              d="M0,650 C280,550 520,700 720,600 C920,500 1160,650 1440,580 L1440,800 L0,800 Z"
-            />
-          </svg>
-        </div>
-        
-        <div className="w-full max-w-[360px] relative z-10 text-center">
-          <div className="bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-xl p-8">
-            <div className="mb-6">
-              <FaSpinner className="text-4xl text-neutral-300 animate-spin mx-auto mb-4" />
-              <h2 className="text-xl font-bold text-neutral-100 mb-2">Waiting for Approval</h2>
-              <p className="text-neutral-400 text-sm">
-                Requesting to join room <span className="text-neutral-200 font-mono">{pendingRoom}</span>
-              </p>
-            </div>
-            
-            <p className="text-neutral-500 text-xs mb-6">
-              The room admin will decide whether to let you in. Please wait...
-            </p>
-            
-            <button
-              onClick={handleCancelPending}
-              className="flex items-center justify-center gap-2 w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors text-sm"
-            >
-              <FaTimes className="text-xs" />
-              Cancel Request
-            </button>
-          </div>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">

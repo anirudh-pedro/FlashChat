@@ -7,8 +7,9 @@ import UsersList from "../components/UsersList";
 import TypingIndicator from "../components/TypingIndicator";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin } from "../socket";
+import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin, cancelJoinRequest } from "../socket";
 import { formatRoomName, isLocationRoom } from "../utils/roomUtils";
+import { FaSpinner, FaTimes } from "react-icons/fa";
 
 const ChatPage = () => {
   const location = useLocation();
@@ -23,6 +24,7 @@ const ChatPage = () => {
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [showPendingPanel, setShowPendingPanel] = useState(false);
+  const [isPendingApproval, setIsPendingApproval] = useState(false);
   
   const params = new URLSearchParams(location.search);
   const username = params.get("username");
@@ -88,10 +90,14 @@ const ChatPage = () => {
     const handleConnection = () => {
       if (hasJoinedRef.current) return; // Prevent duplicate joins
       
-      joinRoom({ username, room }, (error) => {
-        if (error) {
-          toast.error(error);
+      joinRoom({ username, room }, (response) => {
+        if (response && response.error) {
+          toast.error(response.error);
           navigate("/join");
+        } else if (response && response.pending) {
+          // Waiting for admin approval
+          setIsPendingApproval(true);
+          toast.info("Waiting for admin approval...");
         } else {
           hasJoinedRef.current = true;
           isMountedRef.current = true; // Mark as truly mounted after successful join
@@ -193,6 +199,21 @@ const ChatPage = () => {
     const handlePendingUsersUpdate = ({ pendingUsers: updated }) => {
       setPendingUsers(updated);
     };
+    
+    // Handle join approved (for pending users)
+    const handleJoinApproved = ({ room: approvedRoom }) => {
+      setIsPendingApproval(false);
+      hasJoinedRef.current = true;
+      isMountedRef.current = true;
+      toast.success("Your join request was approved!");
+    };
+    
+    // Handle join rejected (for pending users)
+    const handleJoinRejected = ({ reason }) => {
+      setIsPendingApproval(false);
+      toast.error(reason || "Your join request was rejected");
+      setTimeout(() => navigate("/join"), 2000);
+    };
 
     // Listen for user joined notifications
     const handleUserJoined = (username) => {
@@ -283,6 +304,8 @@ const ChatPage = () => {
     socket.on("adminStatus", handleAdminStatus);
     socket.on("joinRequest", handleJoinRequest);
     socket.on("pendingUsersUpdate", handlePendingUsersUpdate);
+    socket.on("joinApproved", handleJoinApproved);
+    socket.on("joinRejected", handleJoinRejected);
 
     return () => {
       socket.off("chatHistory", handleChatHistory);
@@ -299,8 +322,16 @@ const ChatPage = () => {
       socket.off("adminStatus", handleAdminStatus);
       socket.off("joinRequest", handleJoinRequest);
       socket.off("pendingUsersUpdate", handlePendingUsersUpdate);
+      socket.off("joinApproved", handleJoinApproved);
+      socket.off("joinRejected", handleJoinRejected);
     };
   }, [socket, navigate]); // Only socket and navigate as dependencies
+
+  // Handle cancelling pending join request
+  const handleCancelPending = () => {
+    cancelJoinRequest(room, () => {});
+    navigate("/join");
+  };
 
   const sendMessage = (message) => {
     const socketInstance = getSocket();
@@ -398,6 +429,40 @@ const ChatPage = () => {
 
   const formattedRoomName = formatRoomName(room);
   const isLocationBased = isLocationRoom(room);
+
+  // Show pending approval screen if waiting for admin
+  if (isPendingApproval) {
+    return (
+      <div 
+        className="flex flex-col items-center justify-center w-full bg-neutral-950"
+        style={{ height: viewportHeight }}
+      >
+        <div className="w-full max-w-[360px] p-4 text-center">
+          <div className="bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-xl p-8">
+            <div className="mb-6">
+              <FaSpinner className="text-4xl text-neutral-300 animate-spin mx-auto mb-4" />
+              <h2 className="text-xl font-bold text-neutral-100 mb-2">Waiting for Approval</h2>
+              <p className="text-neutral-400 text-sm">
+                Requesting to join room <span className="text-neutral-200 font-mono">{room}</span>
+              </p>
+            </div>
+            
+            <p className="text-neutral-500 text-xs mb-6">
+              The room admin will decide whether to let you in. Please wait...
+            </p>
+            
+            <button
+              onClick={handleCancelPending}
+              className="flex items-center justify-center gap-2 w-full py-2.5 bg-neutral-800 hover:bg-neutral-700 text-neutral-300 rounded-lg transition-colors text-sm cursor-pointer"
+            >
+              <FaTimes className="text-xs" />
+              Cancel Request
+            </button>
+          </div>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div 
