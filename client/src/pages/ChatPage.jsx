@@ -101,6 +101,10 @@ const ChatPage = () => {
         } else {
           hasJoinedRef.current = true;
           isMountedRef.current = true; // Mark as truly mounted after successful join
+          // Store admin token if provided
+          if (response && response.adminToken && room) {
+            localStorage.setItem(`adminToken_${room}`, response.adminToken);
+          }
         }
       });
     };
@@ -178,10 +182,14 @@ const ChatPage = () => {
     };
     
     // Handle admin status update
-    const handleAdminStatus = ({ isAdmin: adminStatus }) => {
+    const handleAdminStatus = ({ isAdmin: adminStatus, adminToken }) => {
       setIsAdmin(adminStatus);
       if (adminStatus) {
         toast.success("You are the room admin");
+        // Store admin token in localStorage for this room
+        if (adminToken && room) {
+          localStorage.setItem(`adminToken_${room}`, adminToken);
+        }
       }
     };
     

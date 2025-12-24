@@ -78,7 +78,12 @@ export const disconnectSocket = () => {
 // Join a room
 export const joinRoom = (userData, callback) => {
   if (!socket) initSocket();
-  socket.emit('join', userData, callback);
+  
+  // Get admin token from localStorage for this room if it exists
+  const storedToken = localStorage.getItem(`adminToken_${userData.room}`);
+  const dataWithToken = { ...userData, adminToken: storedToken };
+  
+  socket.emit('join', dataWithToken, callback);
 };
 
 // Send a message

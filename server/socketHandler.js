@@ -10,6 +10,7 @@ const {
   isRoomActive,
   isRoomAdmin,
   getRoomAdmin,
+  getRoomAdminToken,
   transferAdmin,
   addPendingUser,
   getPendingUsers,
@@ -249,7 +250,7 @@ const setupSocketHandlers = (io) => {
     console.log(`New connection: ${socket.id}`);
     
     // Handle user joining a room
-    socket.on('join', async ({ username, room }, callback) => {
+    socket.on('join', async ({ username, room, adminToken }, callback) => {
       try {
         // Check rate limit for join action
         const rateLimitCheck = checkRateLimit(socket.id, 'join');
@@ -287,10 +288,17 @@ const setupSocketHandlers = (io) => {
 
         // Check if room already has users (admin exists)
         const currentAdmin = await getRoomAdmin(sanitizedRoom);
+        const currentAdminToken = await getRoomAdminToken(sanitizedRoom);
         const roomCount = await getRoomCount(sanitizedRoom);
+        const isNearbyRoom = sanitizedRoom.startsWith('LOC_');
+        
+        // Check if this user is the admin (has matching token)
+        const isReturningAdmin = adminToken && currentAdminToken && adminToken === currentAdminToken;
         
         // If room has an admin and users, require approval
-        if (currentAdmin && roomCount > 0) {
+        // EXCEPT for nearby rooms (LOC_) which are open for anyone
+        // EXCEPT if the user is the returning admin
+        if (currentAdmin && roomCount > 0 && !isNearbyRoom && !isReturningAdmin) {
           // Add user to pending list
           await addPendingUser(sanitizedRoom, {
             socketId: socket.id,
@@ -315,8 +323,13 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // No admin or empty room - add user directly (they become admin)
-        const { error, user } = await addUser({ id: socket.id, username: sanitizedUsername, room: sanitizedRoom });
+        // Add user - pass admin token for verification
+        const { error, user, adminToken: returnedAdminToken } = await addUser({ 
+          id: socket.id, 
+          username: sanitizedUsername, 
+          room: sanitizedRoom,
+          adminToken: adminToken // Pass the token for verification
+        });
         if (error) return callback({ error });
 
         // Cancel any pending room cleanup
@@ -364,10 +377,14 @@ const setupSocketHandlers = (io) => {
           pendingUsers: pendingUsers
         });
         
-        // Tell the user if they are admin
-        socket.emit('adminStatus', { isAdmin: user.isAdmin || socket.id === adminSocketId });
+        // Tell the user if they are admin (and send the token if they are)
+        const isUserAdmin = user.isAdmin || socket.id === adminSocketId;
+        socket.emit('adminStatus', { 
+          isAdmin: isUserAdmin,
+          adminToken: isUserAdmin ? returnedAdminToken : null
+        });
 
-        if (callback) callback();
+        if (callback) callback({ adminToken: returnedAdminToken });
       } catch (error) {
         console.error('Error in join handler:', error);
         if (callback) callback({ error: 'Server error, please try again' });
@@ -409,8 +426,15 @@ const setupSocketHandlers = (io) => {
     // Handle admin approving a join request
     socket.on('approveJoin', async ({ pendingSocketId, room }, callback) => {
       try {
-        // Verify the approver is the admin
-        const isAdmin = await isRoomAdmin(socket.id, room);
+        // Get the current user first
+        const currentUser = await getUser(socket.id);
+        if (!currentUser) {
+          if (callback) callback({ error: 'You are not in a room' });
+          return;
+        }
+        
+        // Verify the approver is the admin (check by both socket ID and username)
+        const isAdmin = await isRoomAdmin(socket.id, room, currentUser.username);
         if (!isAdmin) {
           if (callback) callback({ error: 'Only the admin can approve join requests' });
           return;
@@ -494,8 +518,15 @@ const setupSocketHandlers = (io) => {
     // Handle admin rejecting a join request
     socket.on('rejectJoin', async ({ pendingSocketId, room, reason }, callback) => {
       try {
-        // Verify the rejecter is the admin
-        const isAdmin = await isRoomAdmin(socket.id, room);
+        // Get the current user first
+        const currentUser = await getUser(socket.id);
+        if (!currentUser) {
+          if (callback) callback({ error: 'You are not in a room' });
+          return;
+        }
+        
+        // Verify the rejecter is the admin (check by both socket ID and username)
+        const isAdmin = await isRoomAdmin(socket.id, room, currentUser.username);
         if (!isAdmin) {
           if (callback) callback({ error: 'Only the admin can reject join requests' });
           return;
@@ -548,7 +579,7 @@ const setupSocketHandlers = (io) => {
     // Handle admin kicking a user
     socket.on('kickUser', async ({ targetSocketId, room }, callback) => {
       try {
-        // Verify the kicker is the admin
+        // Verify the kicker is the admin (by socket ID)
         const isAdmin = await isRoomAdmin(socket.id, room);
         if (!isAdmin) {
           if (callback) callback({ error: 'Only the admin can kick users' });
@@ -907,7 +938,7 @@ const setupSocketHandlers = (io) => {
 
   // Helper function for handling a user leaving
   const handleUserLeaving = async (socket, user) => {
-    // Check if the leaving user was the admin
+    // Check if the leaving user was the admin (by socket ID)
     const wasAdmin = await isRoomAdmin(socket.id, user.room);
     
     // Notify other users in the room
@@ -927,13 +958,16 @@ const setupSocketHandlers = (io) => {
     // If the admin left, transfer to another user
     let newAdminId = await getRoomAdmin(user.room);
     if (wasAdmin && usersInRoom.length > 0) {
-      // Transfer admin to first remaining user
+      // Transfer admin to first remaining user (generates new token for them)
       const newAdmin = usersInRoom[0];
-      await transferAdmin(user.room, newAdmin.id);
+      const transferResult = await transferAdmin(user.room, newAdmin.id);
       newAdminId = newAdmin.id;
       
-      // Notify new admin
-      io.to(newAdmin.id).emit('adminStatus', { isAdmin: true });
+      // Notify new admin with their new token
+      io.to(newAdmin.id).emit('adminStatus', { 
+        isAdmin: true,
+        adminToken: transferResult.adminToken
+      });
       io.to(user.room).emit('message', {
         user: 'System',
         text: `${newAdmin.username} is now the room admin`,

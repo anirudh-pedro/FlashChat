@@ -4,14 +4,14 @@
  * Schema:
  * - user:<socketId>        → HASH { username, room, joinedAt }
  * - room:<roomId>:users    → SET of socketIds
- * - room:<roomId>:meta     → HASH { createdAt, lastActivity, admin }
+ * - room:<roomId>:meta     → HASH { createdAt, lastActivity, adminToken, adminSocketId }
  * - room:<roomId>:pending  → SET of JSON-stringified pending users
  * 
  * Benefits:
  * - Users survive server restart (if they reconnect)
  * - Room state is persistent
  * - Horizontal scaling ready (multiple server instances)
- * - Admin approval system for room access
+ * - Admin tracked by unique token (persists across reconnects with different names)
  */
 
 const { getRedisClient, isRedisConnected } = require('../src/config/redis');
@@ -44,10 +44,10 @@ const roomCleanupTimers = new Map();
 
 /**
  * Add a new user to Redis
- * @param {Object} userInfo - { id: socketId, username, room }
- * @returns {Promise<{user?: Object, error?: string}>}
+ * @param {Object} userInfo - { id: socketId, username, room, adminToken? }
+ * @returns {Promise<{user?: Object, error?: string, adminToken?: string}>}
  */
-const addUser = async ({ id, username, room }) => {
+const addUser = async ({ id, username, room, adminToken = null }) => {
   // Validate inputs
   if (!username || !room) {
     return { error: 'Username and room are required!' };
@@ -100,25 +100,37 @@ const addUser = async ({ id, username, room }) => {
     await redis.sAdd(roomUsersKey, id);
     await redis.expire(roomUsersKey, ROOM_TTL);
 
-    // Update room metadata - first user becomes admin
+    // Update room metadata - admin tracked by unique token
     const roomMetaKey = keys.roomMeta(room);
     const roomMeta = await redis.hGetAll(roomMetaKey);
     
     const isNewRoom = !roomMeta || !roomMeta.createdAt;
-    const isAdmin = isNewRoom || !roomMeta.admin;
+    let isAdmin = false;
+    let returnAdminToken = null;
     
     if (isNewRoom) {
+      // First user becomes admin - generate a new admin token
+      const newAdminToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
       await redis.hSet(roomMetaKey, {
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
-        admin: id // First user is the admin
+        adminToken: newAdminToken,
+        adminSocketId: id
       });
+      isAdmin = true;
+      returnAdminToken = newAdminToken; // Return token to client to store
     } else {
       await redis.hSet(roomMetaKey, 'lastActivity', new Date().toISOString());
-      // If no admin set, make this user admin
-      if (!roomMeta.admin) {
-        await redis.hSet(roomMetaKey, 'admin', id);
+      
+      // Check if this user has the admin token
+      if (adminToken && roomMeta.adminToken && adminToken === roomMeta.adminToken) {
+        // This is the admin rejoining - update their socket ID
+        await redis.hSet(roomMetaKey, 'adminSocketId', id);
+        isAdmin = true;
+        returnAdminToken = adminToken; // Confirm the token
       }
+      
+      // If no admin token exists (legacy room), don't make anyone admin
     }
     await redis.expire(roomMetaKey, ROOM_TTL);
 
@@ -133,11 +145,11 @@ const addUser = async ({ id, username, room }) => {
     const updatedCapacity = await checkRoomCapacity(room);
     console.log(`✅ User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)${isAdmin ? ' [ADMIN]' : ''}`);
 
-    return { user: { id, username, room, isAdmin } };
+    return { user: { id, username, room, isAdmin }, adminToken: returnAdminToken };
   } catch (error) {
     console.error('❌ Error adding user to Redis:', error.message);
     // Fallback to in-memory
-    return addUserInMemory({ id, username, room });
+    return addUserInMemory({ id, username, room, adminToken });
   }
 };
 
@@ -345,7 +357,7 @@ const reattachUser = async (oldSocketId, newSocketId, username, room) => {
 const inMemoryUsers = [];
 const inMemoryRooms = new Map();
 
-const addUserInMemory = ({ id, username, room }) => {
+const addUserInMemory = ({ id, username, room, adminToken = null }) => {
   username = username.trim().toLowerCase();
   room = room.trim().toUpperCase();
 
@@ -355,14 +367,31 @@ const addUserInMemory = ({ id, username, room }) => {
   }
 
   const user = { id, username, room };
+  let returnAdminToken = null;
   inMemoryUsers.push(user);
 
   if (!inMemoryRooms.has(room)) {
-    inMemoryRooms.set(room, { userCount: 0 });
+    // New room - this user is the admin, generate token
+    const newAdminToken = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+    inMemoryRooms.set(room, { 
+      userCount: 1, 
+      adminToken: newAdminToken,
+      adminSocketId: id 
+    });
+    user.isAdmin = true;
+    returnAdminToken = newAdminToken;
+  } else {
+    const roomData = inMemoryRooms.get(room);
+    roomData.userCount++;
+    // If this user has the admin token, update their socket ID
+    if (adminToken && roomData.adminToken === adminToken) {
+      roomData.adminSocketId = id;
+      user.isAdmin = true;
+      returnAdminToken = adminToken;
+    }
   }
-  inMemoryRooms.get(room).userCount++;
 
-  return { user };
+  return { user, adminToken: returnAdminToken };
 };
 
 const removeUserInMemory = (id) => {
@@ -423,7 +452,7 @@ const getActiveRoomIds = async () => {
 // ==================== ADMIN FUNCTIONS ====================
 
 /**
- * Check if a user is the admin of a room
+ * Check if a user is the admin of a room (by socket ID only)
  * @param {string} socketId - Socket ID
  * @param {string} room - Room ID
  * @returns {Promise<boolean>}
@@ -434,13 +463,13 @@ const isRoomAdmin = async (socketId, room) => {
   if (!isRedisConnected()) {
     // In-memory fallback
     const roomData = inMemoryRooms.get(room);
-    return roomData && roomData.admin === socketId;
+    return roomData && roomData.adminSocketId === socketId;
   }
 
   try {
     const redis = getRedisClient();
     const roomMeta = await redis.hGetAll(keys.roomMeta(room));
-    return roomMeta && roomMeta.admin === socketId;
+    return roomMeta && roomMeta.adminSocketId === socketId;
   } catch (error) {
     console.error('❌ Error checking room admin:', error.message);
     return false;
@@ -457,13 +486,13 @@ const getRoomAdmin = async (room) => {
   
   if (!isRedisConnected()) {
     const roomData = inMemoryRooms.get(room);
-    return roomData ? roomData.admin : null;
+    return roomData ? roomData.adminSocketId : null;
   }
 
   try {
     const redis = getRedisClient();
     const roomMeta = await redis.hGetAll(keys.roomMeta(room));
-    return roomMeta ? roomMeta.admin : null;
+    return roomMeta ? roomMeta.adminSocketId : null;
   } catch (error) {
     console.error('❌ Error getting room admin:', error.message);
     return null;
@@ -471,30 +500,60 @@ const getRoomAdmin = async (room) => {
 };
 
 /**
- * Transfer admin to another user
+ * Get admin username of a room
  * @param {string} room - Room ID
- * @param {string} newAdminId - New admin's socket ID
- * @returns {Promise<boolean>}
+ * @returns {Promise<string|null>}
  */
-const transferAdmin = async (room, newAdminId) => {
+const getRoomAdminToken = async (room) => {
   room = room.trim().toUpperCase();
   
   if (!isRedisConnected()) {
     const roomData = inMemoryRooms.get(room);
-    if (roomData) {
-      roomData.admin = newAdminId;
-      return true;
-    }
-    return false;
+    return roomData ? roomData.adminToken : null;
   }
 
   try {
     const redis = getRedisClient();
-    await redis.hSet(keys.roomMeta(room), 'admin', newAdminId);
-    return true;
+    const roomMeta = await redis.hGetAll(keys.roomMeta(room));
+    return roomMeta ? roomMeta.adminToken : null;
+  } catch (error) {
+    console.error('❌ Error getting room admin token:', error.message);
+    return null;
+  }
+};
+
+/**
+ * Transfer admin to another user (generates new token for them)
+ * @param {string} room - Room ID
+ * @param {string} newAdminSocketId - New admin's socket ID
+ * @returns {Promise<{success: boolean, adminToken?: string}>}
+ */
+const transferAdmin = async (room, newAdminSocketId) => {
+  room = room.trim().toUpperCase();
+  
+  // Generate new token for the new admin
+  const newAdminToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    if (roomData) {
+      roomData.adminSocketId = newAdminSocketId;
+      roomData.adminToken = newAdminToken;
+      return { success: true, adminToken: newAdminToken };
+    }
+    return { success: false };
+  }
+
+  try {
+    const redis = getRedisClient();
+    await redis.hSet(keys.roomMeta(room), {
+      adminSocketId: newAdminSocketId,
+      adminToken: newAdminToken
+    });
+    return { success: true, adminToken: newAdminToken };
   } catch (error) {
     console.error('❌ Error transferring admin:', error.message);
-    return false;
+    return { success: false };
   }
 };
 
@@ -706,6 +765,7 @@ module.exports = {
   // Admin functions
   isRoomAdmin,
   getRoomAdmin,
+  getRoomAdminToken,
   transferAdmin,
   // Pending user functions
   addPendingUser,
