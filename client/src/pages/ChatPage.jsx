@@ -30,6 +30,7 @@ const ChatPage = () => {
   const username = params.get("username");
   const room = params.get("room");
   const joinMethod = params.get("joinMethod");
+  const requireAdmin = params.get("requireAdmin") === "true";
   
   // Use refs to avoid re-running effects when these values are used in callbacks
   const usernameRef = useRef(username);
@@ -90,7 +91,7 @@ const ChatPage = () => {
     const handleConnection = () => {
       if (hasJoinedRef.current) return; // Prevent duplicate joins
       
-      joinRoom({ username, room }, (response) => {
+      joinRoom({ username, room, requireAdmin }, (response) => {
         if (response && response.error) {
           toast.error(response.error);
           navigate("/join");

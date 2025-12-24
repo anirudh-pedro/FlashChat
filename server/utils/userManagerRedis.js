@@ -4,7 +4,7 @@
  * Schema:
  * - user:<socketId>        → HASH { username, room, joinedAt }
  * - room:<roomId>:users    → SET of socketIds
- * - room:<roomId>:meta     → HASH { createdAt, lastActivity, adminToken, adminSocketId }
+ * - room:<roomId>:meta     → HASH { createdAt, lastActivity, adminToken, adminSocketId, requireAdmin }
  * - room:<roomId>:pending  → SET of JSON-stringified pending users
  * 
  * Benefits:
@@ -12,6 +12,7 @@
  * - Room state is persistent
  * - Horizontal scaling ready (multiple server instances)
  * - Admin tracked by unique token (persists across reconnects with different names)
+ * - Optional admin control mode (creator-only admin, no transfer)
  */
 
 const { getRedisClient, isRedisConnected } = require('../src/config/redis');
@@ -44,10 +45,10 @@ const roomCleanupTimers = new Map();
 
 /**
  * Add a new user to Redis
- * @param {Object} userInfo - { id: socketId, username, room, adminToken? }
+ * @param {Object} userInfo - { id: socketId, username, room, adminToken?, requireAdmin? }
  * @returns {Promise<{user?: Object, error?: string, adminToken?: string}>}
  */
-const addUser = async ({ id, username, room, adminToken = null }) => {
+const addUser = async ({ id, username, room, adminToken = null, requireAdmin = false }) => {
   // Validate inputs
   if (!username || !room) {
     return { error: 'Username and room are required!' };
@@ -60,7 +61,7 @@ const addUser = async ({ id, username, room, adminToken = null }) => {
   // Fallback to in-memory if Redis not connected
   if (!isRedisConnected()) {
     console.warn('⚠️ Redis not connected, using in-memory fallback');
-    return addUserInMemory({ id, username, room });
+    return addUserInMemory({ id, username, room, adminToken, requireAdmin });
   }
 
   try {
@@ -115,7 +116,8 @@ const addUser = async ({ id, username, room, adminToken = null }) => {
         createdAt: new Date().toISOString(),
         lastActivity: new Date().toISOString(),
         adminToken: newAdminToken,
-        adminSocketId: id
+        adminSocketId: id,
+        requireAdmin: requireAdmin ? 'true' : 'false' // Store if room requires admin approval
       });
       isAdmin = true;
       returnAdminToken = newAdminToken; // Return token to client to store
@@ -376,7 +378,8 @@ const addUserInMemory = ({ id, username, room, adminToken = null }) => {
     inMemoryRooms.set(room, { 
       userCount: 1, 
       adminToken: newAdminToken,
-      adminSocketId: id 
+      adminSocketId: id,
+      requireAdmin: requireAdmin === true
     });
     user.isAdmin = true;
     returnAdminToken = newAdminToken;
@@ -500,7 +503,7 @@ const getRoomAdmin = async (room) => {
 };
 
 /**
- * Get admin username of a room
+ * Get admin token of a room
  * @param {string} room - Room ID
  * @returns {Promise<string|null>}
  */
@@ -519,6 +522,29 @@ const getRoomAdminToken = async (room) => {
   } catch (error) {
     console.error('❌ Error getting room admin token:', error.message);
     return null;
+  }
+};
+
+/**
+ * Check if room requires admin approval (no transfer on admin leave)
+ * @param {string} room - Room ID
+ * @returns {Promise<boolean>}
+ */
+const isRoomAdminRequired = async (room) => {
+  room = room.trim().toUpperCase();
+  
+  if (!isRedisConnected()) {
+    const roomData = inMemoryRooms.get(room);
+    return roomData ? roomData.requireAdmin === true : false;
+  }
+
+  try {
+    const redis = getRedisClient();
+    const roomMeta = await redis.hGetAll(keys.roomMeta(room));
+    return roomMeta && roomMeta.requireAdmin === 'true';
+  } catch (error) {
+    console.error('❌ Error checking room admin requirement:', error.message);
+    return false;
   }
 };
 
@@ -766,6 +792,7 @@ module.exports = {
   isRoomAdmin,
   getRoomAdmin,
   getRoomAdminToken,
+  isRoomAdminRequired,
   transferAdmin,
   // Pending user functions
   addPendingUser,

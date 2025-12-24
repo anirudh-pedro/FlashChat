@@ -11,6 +11,7 @@ const {
   isRoomAdmin,
   getRoomAdmin,
   getRoomAdminToken,
+  isRoomAdminRequired,
   transferAdmin,
   addPendingUser,
   getPendingUsers,
@@ -167,6 +168,9 @@ const RATE_LIMITS = {
 // Structure: Map<socketId, Map<actionType, { count, resetTime, blockedUntil }>>
 const rateLimitStore = new Map();
 
+// Track recently removed users to prevent duplicate leave messages
+const recentlyRemovedUsers = new Set();
+
 /**
  * Check if action is rate limited
  * @param {string} socketId - Socket ID
@@ -250,7 +254,7 @@ const setupSocketHandlers = (io) => {
     console.log(`New connection: ${socket.id}`);
     
     // Handle user joining a room
-    socket.on('join', async ({ username, room, adminToken }, callback) => {
+    socket.on('join', async ({ username, room, adminToken, requireAdmin }, callback) => {
       try {
         // Check rate limit for join action
         const rateLimitCheck = checkRateLimit(socket.id, 'join');
@@ -323,12 +327,13 @@ const setupSocketHandlers = (io) => {
           return;
         }
 
-        // Add user - pass admin token for verification
+        // Add user - pass admin token for verification and requireAdmin for room settings
         const { error, user, adminToken: returnedAdminToken } = await addUser({ 
           id: socket.id, 
           username: sanitizedUsername, 
           room: sanitizedRoom,
-          adminToken: adminToken // Pass the token for verification
+          adminToken: adminToken, // Pass the token for verification
+          requireAdmin: requireAdmin === true || requireAdmin === 'true' // Room requires admin approval
         });
         if (error) return callback({ error });
 
@@ -914,11 +919,20 @@ const setupSocketHandlers = (io) => {
     
     // Handle user explicitly leaving
     socket.on('leaveRoom', async () => {
+      // Prevent duplicate processing
+      if (recentlyRemovedUsers.has(socket.id)) {
+        return;
+      }
+      recentlyRemovedUsers.add(socket.id);
+      
       const user = await removeUser(socket.id);
       
       if (user) {
         await handleUserLeaving(socket, user);
       }
+      
+      // Clean up after a short delay
+      setTimeout(() => recentlyRemovedUsers.delete(socket.id), 5000);
     });
     
     // Handle disconnects (browser close, etc.)
@@ -928,11 +942,21 @@ const setupSocketHandlers = (io) => {
       // Clean up rate limit data for this socket
       cleanupRateLimit(socket.id);
       
+      // Prevent duplicate processing
+      if (recentlyRemovedUsers.has(socket.id)) {
+        recentlyRemovedUsers.delete(socket.id);
+        return;
+      }
+      recentlyRemovedUsers.add(socket.id);
+      
       const user = await removeUser(socket.id);
       
       if (user) {
         await handleUserLeaving(socket, user);
       }
+      
+      // Clean up after a short delay
+      setTimeout(() => recentlyRemovedUsers.delete(socket.id), 5000);
     });
   });
 
@@ -955,9 +979,12 @@ const setupSocketHandlers = (io) => {
     const roomInfo = await getRoomInfo(user.room);
     const usersInRoom = await getUsersInRoom(user.room);
     
-    // If the admin left, transfer to another user
+    // Check if room requires admin (no transfer mode)
+    const roomRequiresAdmin = await isRoomAdminRequired(user.room);
+    
+    // If the admin left and room doesn't require admin, transfer to another user
     let newAdminId = await getRoomAdmin(user.room);
-    if (wasAdmin && usersInRoom.length > 0) {
+    if (wasAdmin && usersInRoom.length > 0 && !roomRequiresAdmin) {
       // Transfer admin to first remaining user (generates new token for them)
       const newAdmin = usersInRoom[0];
       const transferResult = await transferAdmin(user.room, newAdmin.id);
@@ -975,6 +1002,9 @@ const setupSocketHandlers = (io) => {
       });
       
       console.log(`👑 Admin transferred to ${newAdmin.username} in room ${user.room}`);
+    } else if (wasAdmin && roomRequiresAdmin) {
+      // Admin left but room requires the creator - admin stays with token holder
+      console.log(`🔒 Admin left room ${user.room} but admin control is locked to creator`);
     }
     
     // Get pending users for room data
