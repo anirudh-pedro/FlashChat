@@ -106,26 +106,36 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
     const roomMeta = await redis.hGetAll(roomMetaKey);
     
     const isNewRoom = !roomMeta || !roomMeta.createdAt;
+    const isLocationRoom = room.startsWith('LOC_'); // Nearby chats don't need admin
     let isAdmin = false;
     let returnAdminToken = null;
     
     if (isNewRoom) {
-      // First user becomes admin - generate a new admin token
-      const newAdminToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-      await redis.hSet(roomMetaKey, {
-        createdAt: new Date().toISOString(),
-        lastActivity: new Date().toISOString(),
-        adminToken: newAdminToken,
-        adminSocketId: id,
-        requireAdmin: requireAdmin ? 'true' : 'false' // Store if room requires admin approval
-      });
-      isAdmin = true;
-      returnAdminToken = newAdminToken; // Return token to client to store
+      if (isLocationRoom) {
+        // Location-based rooms don't have admin
+        await redis.hSet(roomMetaKey, {
+          createdAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          requireAdmin: 'false'
+        });
+      } else {
+        // First user becomes admin - generate a new admin token
+        const newAdminToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+        await redis.hSet(roomMetaKey, {
+          createdAt: new Date().toISOString(),
+          lastActivity: new Date().toISOString(),
+          adminToken: newAdminToken,
+          adminSocketId: id,
+          requireAdmin: requireAdmin ? 'true' : 'false' // Store if room requires admin approval
+        });
+        isAdmin = true;
+        returnAdminToken = newAdminToken; // Return token to client to store
+      }
     } else {
       await redis.hSet(roomMetaKey, 'lastActivity', new Date().toISOString());
       
-      // Check if this user has the admin token
-      if (adminToken && roomMeta.adminToken && adminToken === roomMeta.adminToken) {
+      // Check if this user has the admin token (only for non-location rooms)
+      if (!isLocationRoom && adminToken && roomMeta.adminToken && adminToken === roomMeta.adminToken) {
         // This is the admin rejoining - update their socket ID
         await redis.hSet(roomMetaKey, 'adminSocketId', id);
         isAdmin = true;
@@ -372,22 +382,32 @@ const addUserInMemory = ({ id, username, room, adminToken = null }) => {
   let returnAdminToken = null;
   inMemoryUsers.push(user);
 
+  const isLocationRoom = room.startsWith('LOC_'); // Nearby chats don't need admin
+  
   if (!inMemoryRooms.has(room)) {
-    // New room - this user is the admin, generate token
-    const newAdminToken = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-    inMemoryRooms.set(room, { 
-      userCount: 1, 
-      adminToken: newAdminToken,
-      adminSocketId: id,
-      requireAdmin: requireAdmin === true
-    });
-    user.isAdmin = true;
-    returnAdminToken = newAdminToken;
+    if (isLocationRoom) {
+      // Location-based rooms don't have admin
+      inMemoryRooms.set(room, { 
+        userCount: 1,
+        requireAdmin: false
+      });
+    } else {
+      // New room - this user is the admin, generate token
+      const newAdminToken = `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
+      inMemoryRooms.set(room, { 
+        userCount: 1, 
+        adminToken: newAdminToken,
+        adminSocketId: id,
+        requireAdmin: requireAdmin === true
+      });
+      user.isAdmin = true;
+      returnAdminToken = newAdminToken;
+    }
   } else {
     const roomData = inMemoryRooms.get(room);
     roomData.userCount++;
-    // If this user has the admin token, update their socket ID
-    if (adminToken && roomData.adminToken === adminToken) {
+    // If this user has the admin token, update their socket ID (only for non-location rooms)
+    if (!isLocationRoom && adminToken && roomData.adminToken === adminToken) {
       roomData.adminSocketId = id;
       user.isAdmin = true;
       returnAdminToken = adminToken;
