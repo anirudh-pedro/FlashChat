@@ -295,14 +295,17 @@ const setupSocketHandlers = (io) => {
         const currentAdminToken = await getRoomAdminToken(sanitizedRoom);
         const roomCount = await getRoomCount(sanitizedRoom);
         const isNearbyRoom = sanitizedRoom.startsWith('LOC_');
+        const roomRequiresAdmin = await isRoomAdminRequired(sanitizedRoom);
         
         // Check if this user is the admin (has matching token)
         const isReturningAdmin = adminToken && currentAdminToken && adminToken === currentAdminToken;
         
-        // If room has an admin and users, require approval
-        // EXCEPT for nearby rooms (LOC_) which are open for anyone
-        // EXCEPT if the user is the returning admin
-        if (currentAdmin && roomCount > 0 && !isNearbyRoom && !isReturningAdmin) {
+        // Require approval ONLY if:
+        // 1. Room has admin and users
+        // 2. NOT a nearby room (LOC_)
+        // 3. NOT the returning admin
+        // 4. Room has admin control enabled (requireAdmin = true)
+        if (currentAdmin && roomCount > 0 && !isNearbyRoom && !isReturningAdmin && roomRequiresAdmin) {
           // Add user to pending list
           await addPendingUser(sanitizedRoom, {
             socketId: socket.id,

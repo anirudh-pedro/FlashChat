@@ -107,12 +107,13 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
     
     const isNewRoom = !roomMeta || !roomMeta.createdAt;
     const isLocationRoom = room.startsWith('LOC_'); // Nearby chats don't need admin
+    const needsAdmin = requireAdmin === true || requireAdmin === 'true'; // Does this room need admin control?
     let isAdmin = false;
     let returnAdminToken = null;
     
     if (isNewRoom) {
-      if (isLocationRoom) {
-        // Location-based rooms don't have admin
+      if (isLocationRoom || !needsAdmin) {
+        // Location-based rooms OR rooms without admin control don't have admin
         await redis.hSet(roomMetaKey, {
           createdAt: new Date().toISOString(),
           lastActivity: new Date().toISOString(),
@@ -126,7 +127,7 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
           lastActivity: new Date().toISOString(),
           adminToken: newAdminToken,
           adminSocketId: id,
-          requireAdmin: requireAdmin ? 'true' : 'false' // Store if room requires admin approval
+          requireAdmin: 'true' // Admin control is enabled
         });
         isAdmin = true;
         returnAdminToken = newAdminToken; // Return token to client to store
@@ -161,7 +162,7 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
   } catch (error) {
     console.error('❌ Error adding user to Redis:', error.message);
     // Fallback to in-memory
-    return addUserInMemory({ id, username, room, adminToken });
+    return addUserInMemory({ id, username, room, adminToken, requireAdmin });
   }
 };
 
@@ -369,7 +370,7 @@ const reattachUser = async (oldSocketId, newSocketId, username, room) => {
 const inMemoryUsers = [];
 const inMemoryRooms = new Map();
 
-const addUserInMemory = ({ id, username, room, adminToken = null }) => {
+const addUserInMemory = ({ id, username, room, adminToken = null, requireAdmin = false }) => {
   username = username.trim().toLowerCase();
   room = room.trim().toUpperCase();
 
@@ -383,10 +384,11 @@ const addUserInMemory = ({ id, username, room, adminToken = null }) => {
   inMemoryUsers.push(user);
 
   const isLocationRoom = room.startsWith('LOC_'); // Nearby chats don't need admin
+  const needsAdmin = requireAdmin === true || requireAdmin === 'true'; // Does this room need admin control?
   
   if (!inMemoryRooms.has(room)) {
-    if (isLocationRoom) {
-      // Location-based rooms don't have admin
+    if (isLocationRoom || !needsAdmin) {
+      // Location-based rooms OR rooms without admin control don't have admin
       inMemoryRooms.set(room, { 
         userCount: 1,
         requireAdmin: false
@@ -398,7 +400,7 @@ const addUserInMemory = ({ id, username, room, adminToken = null }) => {
         userCount: 1, 
         adminToken: newAdminToken,
         adminSocketId: id,
-        requireAdmin: requireAdmin === true
+        requireAdmin: true // Admin control is enabled
       });
       user.isAdmin = true;
       returnAdminToken = newAdminToken;

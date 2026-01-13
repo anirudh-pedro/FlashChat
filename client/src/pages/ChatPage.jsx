@@ -185,14 +185,17 @@ const ChatPage = () => {
     // Handle admin status update
     const handleAdminStatus = ({ isAdmin: adminStatus, adminToken }) => {
       setIsAdmin(adminStatus);
-      // Only show admin toast for private rooms, not nearby (location) rooms
+      // Only show admin toast if:
+      // 1. User is actually admin
+      // 2. Not a nearby (location) room
+      // 3. Admin control was enabled (requireAdmin is true)
       const isNearbyRoom = room && room.startsWith('LOC_');
-      if (adminStatus && !isNearbyRoom) {
+      if (adminStatus && !isNearbyRoom && requireAdmin) {
         toast.success("You are the room admin");
-        // Store admin token in localStorage for this room
-        if (adminToken && room) {
-          localStorage.setItem(`adminToken_${room}`, adminToken);
-        }
+      }
+      // Store admin token in localStorage for this room (always, for reconnection)
+      if (adminStatus && adminToken && room) {
+        localStorage.setItem(`adminToken_${room}`, adminToken);
       }
     };
     
