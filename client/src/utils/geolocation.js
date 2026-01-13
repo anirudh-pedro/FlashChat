@@ -55,21 +55,15 @@ export const getCurrentPosition = () => {
  * @returns {string} - Area identifier string
  */
 export const getAreaIdentifier = (latitude, longitude) => {
-  // Using 0.5° grid (~55km across) to ensure devices within ~15-20km land in the same room
-  // This larger grid compensates for GPS inaccuracies between different devices
-  // At the equator: 0.5° latitude ≈ 55km, 0.5° longitude ≈ 55km
-  // At 45° latitude: 0.5° longitude ≈ 39km
-  const gridSize = 0.5;
-  
-  // Floor-based rounding to avoid boundary issues
-  // This ensures consistent results regardless of small GPS variations
-  const gridLat = Math.floor(latitude / gridSize) * gridSize;
-  const gridLong = Math.floor(longitude / gridSize) * gridSize;
+  // Fixed 0.3° grid (~33km across) so any devices within ~15km land in the same room
+  // Using a fixed grid avoids boundary jumps from varying accuracy across devices
+  const gridSize = 0.3;
+  const roundedLat = Math.round(latitude / gridSize) * gridSize;
+  const roundedLong = Math.round(longitude / gridSize) * gridSize;
 
   // Stable string formatting to prevent floating artifacts
-  // Using 1 decimal place since grid is 0.5° (values will be like 31.0, 31.5, 32.0)
-  const latStr = gridLat.toFixed(1);
-  const longStr = gridLong.toFixed(1);
+  const latStr = roundedLat.toFixed(2);
+  const longStr = roundedLong.toFixed(2);
   
   // Create location-based room ID with uppercase prefix
   return `LOC_${latStr}_${longStr}`;
