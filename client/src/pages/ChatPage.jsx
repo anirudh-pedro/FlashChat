@@ -7,7 +7,7 @@ import UsersList from "../components/UsersList";
 import TypingIndicator from "../components/TypingIndicator";
 import { toast, ToastContainer } from "react-toastify";
 import "react-toastify/dist/ReactToastify.css";
-import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin, cancelJoinRequest, kickUser } from "../socket";
+import { initSocket, getSocket, disconnectSocket, joinRoom, leaveRoom, approveJoin, rejectJoin, cancelJoinRequest, kickUser, setIntentionalLeave } from "../socket";
 import { formatRoomName, isLocationRoom } from "../utils/roomUtils";
 import { FaSpinner, FaTimes } from "react-icons/fa";
 
@@ -124,21 +124,43 @@ const ChatPage = () => {
 
   // Separate cleanup effect that runs on actual page leave
   useEffect(() => {
+    // Handle tab/browser close - this is an intentional leave
     const handleBeforeUnload = () => {
       if (hasJoinedRef.current) {
+        setIntentionalLeave(true);
         leaveRoom();
       }
     };
 
+    // Handle visibility change (user switches apps on mobile)
+    const handleVisibilityChange = () => {
+      if (document.visibilityState === 'hidden') {
+        // User switched to another app - DON'T leave room
+        // Socket might disconnect but we'll reconnect when visible
+        console.log('App went to background - staying in room');
+      } else if (document.visibilityState === 'visible') {
+        // User came back - check if we need to reconnect
+        console.log('App became visible - checking connection');
+        const socketInstance = getSocket();
+        if (socketInstance && !socketInstance.connected) {
+          console.log('Socket disconnected while in background, reconnecting...');
+          socketInstance.connect();
+        }
+      }
+    };
+
     window.addEventListener('beforeunload', handleBeforeUnload);
+    document.addEventListener('visibilitychange', handleVisibilityChange);
 
     return () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
       
       // Use a small timeout to distinguish between StrictMode remount and actual unmount
       // StrictMode will remount immediately (within ~10ms), real navigation won't
       const cleanupTimeout = setTimeout(() => {
         if (hasJoinedRef.current) {
+          setIntentionalLeave(true);
           leaveRoom();
           hasJoinedRef.current = false;
           isMountedRef.current = false;
@@ -446,6 +468,7 @@ const ChatPage = () => {
   };
 
   const leaveCurrentRoom = () => {
+    setIntentionalLeave(true);
     leaveRoom();
     navigate("/join");
   };

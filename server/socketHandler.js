@@ -170,6 +170,10 @@ const rateLimitStore = new Map();
 // Track recently removed users to prevent duplicate leave messages
 const recentlyRemovedUsers = new Set();
 
+// Track grace period timeouts for disconnected users (allows reconnection without leaving room)
+// Structure: Map<socketId, timeoutId>
+const disconnectGracePeriods = new Map();
+
 /**
  * Check if action is rate limited
  * @param {string} socketId - Socket ID
@@ -298,6 +302,22 @@ const setupSocketHandlers = (io) => {
         
         // Check if this user is the admin (has matching token)
         const isReturningAdmin = adminToken && currentAdminToken && adminToken === currentAdminToken;
+        
+        // Check if this user was disconnected and is reconnecting
+        // Cancel any grace period for users with same username in this room
+        const existingUsersInRoom = await getUsersInRoom(sanitizedRoom);
+        for (const existingUser of existingUsersInRoom) {
+          if (existingUser.username === sanitizedUsername && existingUser.id !== socket.id) {
+            // Cancel grace period for the old socket if exists
+            if (disconnectGracePeriods.has(existingUser.id)) {
+              clearTimeout(disconnectGracePeriods.get(existingUser.id));
+              disconnectGracePeriods.delete(existingUser.id);
+              console.log(`🔄 ${sanitizedUsername} reconnected, cancelled grace period for old socket`);
+            }
+            // Remove old user entry
+            await removeUser(existingUser.id);
+          }
+        }
         
         // Require approval ONLY if:
         // 1. Room has admin and users
@@ -919,13 +939,19 @@ const setupSocketHandlers = (io) => {
       }
     });
     
-    // Handle user explicitly leaving
+    // Handle user explicitly leaving (intentional leave - leave button clicked)
     socket.on('leaveRoom', async () => {
       // Prevent duplicate processing
       if (recentlyRemovedUsers.has(socket.id)) {
         return;
       }
       recentlyRemovedUsers.add(socket.id);
+      
+      // Clear any pending reconnect grace period
+      if (disconnectGracePeriods.has(socket.id)) {
+        clearTimeout(disconnectGracePeriods.get(socket.id));
+        disconnectGracePeriods.delete(socket.id);
+      }
       
       const user = await removeUser(socket.id);
       
@@ -937,9 +963,9 @@ const setupSocketHandlers = (io) => {
       setTimeout(() => recentlyRemovedUsers.delete(socket.id), 5000);
     });
     
-    // Handle disconnects (browser close, etc.)
-    socket.on('disconnect', async () => {
-      console.log(`Connection disconnected: ${socket.id}`);
+    // Handle disconnects (browser close, network loss, app backgrounded, etc.)
+    socket.on('disconnect', async (reason) => {
+      console.log(`Connection disconnected: ${socket.id}, reason: ${reason}`);
       
       // Clean up rate limit data for this socket
       cleanupRateLimit(socket.id);
@@ -949,16 +975,55 @@ const setupSocketHandlers = (io) => {
         recentlyRemovedUsers.delete(socket.id);
         return;
       }
-      recentlyRemovedUsers.add(socket.id);
       
-      const user = await removeUser(socket.id);
+      // Get user info before starting grace period
+      const user = await getUser(socket.id);
       
-      if (user) {
-        await handleUserLeaving(socket, user);
+      if (!user) {
+        return; // User not in a room
       }
       
-      // Clean up after a short delay
-      setTimeout(() => recentlyRemovedUsers.delete(socket.id), 5000);
+      // Start a grace period - user might reconnect (mobile app switch, etc.)
+      // If they reconnect within 30 seconds, don't remove them
+      const GRACE_PERIOD = 30000; // 30 seconds
+      
+      console.log(`⏳ Starting ${GRACE_PERIOD/1000}s grace period for ${user.username} in ${user.room}`);
+      
+      const graceTimeout = setTimeout(async () => {
+        disconnectGracePeriods.delete(socket.id);
+        
+        // Check if user has already reconnected (with new socket ID)
+        // They would have same username in same room
+        const usersInRoom = await getUsersInRoom(user.room);
+        const hasReconnected = usersInRoom.some(u => u.username === user.username && u.id !== socket.id);
+        
+        if (hasReconnected) {
+          console.log(`✅ ${user.username} reconnected with new socket, skipping removal`);
+          // Just clean up the old socket data
+          await removeUser(socket.id);
+          return;
+        }
+        
+        // Check if this socket ID is still the user (not reconnected)
+        const currentUser = await getUser(socket.id);
+        if (!currentUser) {
+          console.log(`User ${user.username} already removed, skipping`);
+          return;
+        }
+        
+        // Grace period expired and user didn't reconnect - remove them
+        recentlyRemovedUsers.add(socket.id);
+        const removedUser = await removeUser(socket.id);
+        
+        if (removedUser) {
+          console.log(`⌛ Grace period expired for ${removedUser.username}, removing from room`);
+          await handleUserLeaving(socket, removedUser);
+        }
+        
+        setTimeout(() => recentlyRemovedUsers.delete(socket.id), 5000);
+      }, GRACE_PERIOD);
+      
+      disconnectGracePeriods.set(socket.id, graceTimeout);
     });
   });
 

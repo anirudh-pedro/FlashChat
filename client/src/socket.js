@@ -22,6 +22,14 @@ console.log('🔌 Connecting to:', ENDPOINT);
 // Create a socket instance
 let socket;
 
+// Track if user is intentionally leaving (closing tab) vs just going to background
+let isIntentionalLeave = false;
+
+// Set intentional leave flag (called before navigating away from chat)
+export const setIntentionalLeave = (value) => {
+  isIntentionalLeave = value;
+};
+
 // Initialize socket connection
 export const initSocket = () => {
   // Return existing socket if already connected
@@ -34,7 +42,7 @@ export const initSocket = () => {
   socket = io(ENDPOINT, {
     transports: ['websocket', 'polling'], // Use polling as fallback
     reconnection: true,
-    reconnectionAttempts: 10, // More reconnection attempts
+    reconnectionAttempts: 15, // More reconnection attempts for mobile
     reconnectionDelay: 500, // Faster initial reconnection
     reconnectionDelayMax: 3000, // Cap the delay
     timeout: 30000, // Increase timeout to 30 seconds for slow servers
@@ -96,9 +104,10 @@ export const sendMessage = (message, callback) => {
   socket.emit('sendMessage', message, callback);
 };
 
-// Leave a room
+// Leave a room (intentional leave)
 export const leaveRoom = () => {
   if (!socket) return;
+  isIntentionalLeave = true;
   socket.emit('leaveRoom');
 };
 
@@ -136,5 +145,6 @@ export default {
   approveJoin,
   rejectJoin,
   cancelJoinRequest,
-  kickUser
+  kickUser,
+  setIntentionalLeave
 };
