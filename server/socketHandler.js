@@ -705,7 +705,7 @@ const setupSocketHandlers = (io) => {
         };
 
         // Save message to Redis for persistence
-        saveMessage(user.room, messageObj);
+        await saveMessage(user.room, messageObj);
 
         // Send to everyone in the room including sender
         io.to(user.room).emit('message', messageObj);
@@ -880,14 +880,14 @@ const setupSocketHandlers = (io) => {
 
         // Save file message to Redis (WITHOUT base64 data to save memory)
         // The messageService will strip fileData automatically
-        saveMessage(user.room, fileMessageForBroadcast);
+        await saveMessage(user.room, fileMessageForBroadcast);
 
         // Send to everyone in the room including sender (WITH base64 data)
         io.to(user.room).emit('message', fileMessageForBroadcast);
         
         console.log(`📁 File shared by ${user.username}: ${sanitizedFileName} (${(fileSize / 1024).toFixed(1)}KB)`);
         
-        if (callback) callback({ success: true, messageId: fileMessage.id });
+        if (callback) callback({ success: true, messageId: fileMessageForBroadcast.id });
       } catch (error) {
         console.error('Error in sendFile handler:', error);
         if (callback) callback({ error: 'Failed to send file' });

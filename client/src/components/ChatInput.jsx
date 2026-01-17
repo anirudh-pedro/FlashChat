@@ -215,13 +215,18 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
         reader.readAsDataURL(file);
       });
 
-      // Send file via socket
-      onSendFile({
+      // Send file via socket and wait for response
+      const result = await onSendFile({
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
         fileData: base64Data
       });
+      
+      if (result && result.error) {
+        // Error already shown via toast in parent
+        console.error('File send failed:', result.error);
+      }
     } catch (error) {
       console.error('Error reading file:', error);
       alert('Failed to read file. Please try again.');

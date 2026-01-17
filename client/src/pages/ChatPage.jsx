@@ -290,9 +290,9 @@ const ChatPage = () => {
       toast.info("Reconnected to chat");
       
       // Use refs to get current values
-      joinRoom({ username: usernameRef.current, room: roomRef.current }, (error) => {
-        if (error) {
-          toast.error("Failed to rejoin room: " + error);
+      joinRoom({ username: usernameRef.current, room: roomRef.current }, (response) => {
+        if (response && response.error) {
+          toast.error("Failed to rejoin room: " + response.error);
           setTimeout(() => {
             navigate("/join");
           }, 3000);
@@ -366,11 +366,16 @@ const ChatPage = () => {
   };
 
   const sendFile = (fileData) => {
-    const socketInstance = getSocket();
-    socketInstance.emit("sendFile", fileData, (response) => {
-      if (response && response.error) {
-        toast.error(response.error);
-      }
+    return new Promise((resolve) => {
+      const socketInstance = getSocket();
+      socketInstance.emit("sendFile", fileData, (response) => {
+        if (response && response.error) {
+          toast.error(response.error);
+          resolve({ error: response.error });
+        } else {
+          resolve({ success: true });
+        }
+      });
     });
   };
 

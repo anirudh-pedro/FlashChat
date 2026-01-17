@@ -78,8 +78,8 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
     const roomUsersKey = keys.roomUsers(room);
     const existingUsers = await redis.sMembers(roomUsersKey);
     
-    for (const odId of existingUsers) {
-      const existingUser = await redis.hGetAll(keys.user(odId));
+    for (const socketId of existingUsers) {
+      const existingUser = await redis.hGetAll(keys.user(socketId));
       if (existingUser && existingUser.username === username) {
         return { error: 'Username is already taken in this room!' };
       }
