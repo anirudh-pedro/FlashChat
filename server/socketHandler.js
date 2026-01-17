@@ -12,7 +12,6 @@ const {
   getRoomAdmin,
   getRoomAdminToken,
   isRoomAdminRequired,
-  transferAdmin,
   addPendingUser,
   getPendingUsers,
   removePendingUser,
@@ -982,33 +981,21 @@ const setupSocketHandlers = (io) => {
     const roomInfo = await getRoomInfo(user.room);
     const usersInRoom = await getUsersInRoom(user.room);
     
-    // Check if room requires admin (no transfer mode)
+    // Check if room requires admin control
     const roomRequiresAdmin = await isRoomAdminRequired(user.room);
     
-    // If the admin left and room doesn't require admin, transfer to another user
+    // Handle admin transfer based on room settings:
+    // - If roomRequiresAdmin is FALSE: No admin system, no transfer needed
+    // - If roomRequiresAdmin is TRUE: Admin is locked to creator, no transfer
+    // So we should NEVER transfer admin in either case
     let newAdminId = await getRoomAdmin(user.room);
-    if (wasAdmin && usersInRoom.length > 0 && !roomRequiresAdmin) {
-      // Transfer admin to first remaining user (generates new token for them)
-      const newAdmin = usersInRoom[0];
-      const transferResult = await transferAdmin(user.room, newAdmin.id);
-      newAdminId = newAdmin.id;
-      
-      // Notify new admin with their new token
-      io.to(newAdmin.id).emit('adminStatus', { 
-        isAdmin: true,
-        adminToken: transferResult.adminToken
-      });
-      io.to(user.room).emit('message', {
-        user: 'System',
-        text: `${newAdmin.username} is now the room admin`,
-        createdAt: new Date().toISOString()
-      });
-      
-      console.log(`👑 Admin transferred to ${newAdmin.username} in room ${user.room}`);
-    } else if (wasAdmin && roomRequiresAdmin) {
-      // Admin left but room requires the creator - admin stays with token holder
+    
+    if (wasAdmin && roomRequiresAdmin) {
+      // Admin control is ON but admin left - admin stays with token holder (creator)
+      // The creator can rejoin with their token to regain admin
       console.log(`🔒 Admin left room ${user.room} but admin control is locked to creator`);
     }
+    // If roomRequiresAdmin is FALSE, there's no admin system, so nothing to transfer
     
     // Get pending users for room data
     const pendingUsers = await getPendingUsers(user.room);
