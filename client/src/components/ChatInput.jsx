@@ -7,6 +7,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
+  const [uploadStatus, setUploadStatus] = useState(""); // "reconnecting", "sending", ""
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const textareaRef = useRef(null);
@@ -188,24 +189,47 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
     }
 
     setIsUploading(true);
+    setUploadStatus("preparing");
 
     try {
-      // Check socket connection first (mobile file picker can cause disconnect)
+      // Mobile file picker causes browser to go to background, disconnecting WebSocket
+      // We need to wait for reconnection and room rejoin before sending
       const socket = getSocket();
+      
+      // Wait for socket to be connected (up to 5 seconds)
+      const waitForConnection = async (maxWait = 5000) => {
+        const startTime = Date.now();
+        while (Date.now() - startTime < maxWait) {
+          const currentSocket = getSocket();
+          if (currentSocket && currentSocket.connected) {
+            // Give extra time for room rejoin after reconnection
+            await new Promise(resolve => setTimeout(resolve, 500));
+            return true;
+          }
+          await new Promise(resolve => setTimeout(resolve, 200));
+        }
+        return false;
+      };
+      
       if (!socket || !socket.connected) {
-        // Wait a moment for potential reconnection
-        await new Promise(resolve => setTimeout(resolve, 1000));
+        // Socket disconnected (common on mobile when file picker opens)
+        console.log('Socket disconnected, waiting for reconnection...');
+        setUploadStatus("reconnecting");
+        const reconnected = await waitForConnection(5000);
         
-        const reconnectedSocket = getSocket();
-        if (!reconnectedSocket || !reconnectedSocket.connected) {
-          alert('Connection lost. Please try again.');
+        if (!reconnected) {
+          setUploadStatus("");
           setIsUploading(false);
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
+          // Don't show alert - the connection lost toast should already be visible
           return;
         }
+        console.log('Socket reconnected, proceeding with file upload');
       }
+      
+      setUploadStatus("sending");
 
       // Convert file to base64
       const base64Data = await new Promise((resolve, reject) => {
@@ -232,6 +256,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
       alert('Failed to read file. Please try again.');
     } finally {
       setIsUploading(false);
+      setUploadStatus("");
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -250,8 +275,13 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
         <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
           <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col items-center gap-4 shadow-2xl">
             <div className="w-12 h-12 border-4 border-neutral-700 border-t-white rounded-full animate-spin" />
-            <p className="text-white font-medium text-lg">Sending file...</p>
-            <p className="text-gray-400 text-sm">Please wait</p>
+            <p className="text-white font-medium text-lg">
+              {uploadStatus === "reconnecting" ? "Reconnecting..." : 
+               uploadStatus === "sending" ? "Sending file..." : "Preparing..."}
+            </p>
+            <p className="text-gray-400 text-sm">
+              {uploadStatus === "reconnecting" ? "Please wait while we restore connection" : "Please wait"}
+            </p>
           </div>
         </div>
       )}

@@ -34,10 +34,14 @@ export const initSocket = () => {
   socket = io(ENDPOINT, {
     transports: ['websocket', 'polling'], // Use polling as fallback
     reconnection: true,
-    reconnectionAttempts: 5,
-    reconnectionDelay: 1000,
+    reconnectionAttempts: 10, // More reconnection attempts
+    reconnectionDelay: 500, // Faster initial reconnection
+    reconnectionDelayMax: 3000, // Cap the delay
     timeout: 30000, // Increase timeout to 30 seconds for slow servers
     autoConnect: true,
+    // Mobile-specific: keep connection alive longer
+    pingTimeout: 60000, // 60 seconds before considering connection dead
+    pingInterval: 25000, // Ping every 25 seconds
   });
   
   socket.on('connect', () => {
