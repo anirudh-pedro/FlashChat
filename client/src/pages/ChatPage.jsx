@@ -390,7 +390,16 @@ const ChatPage = () => {
   const sendFile = (fileData) => {
     return new Promise((resolve) => {
       const socketInstance = getSocket();
+      
+      // Set a timeout in case callback is never called (socket issues)
+      const timeout = setTimeout(() => {
+        console.error('File upload timeout - no response from server');
+        toast.error('File upload timed out. Please try again.');
+        resolve({ error: 'Upload timed out' });
+      }, 30000); // 30 second timeout
+      
       socketInstance.emit("sendFile", fileData, (response) => {
+        clearTimeout(timeout); // Clear timeout on response
         if (response && response.error) {
           toast.error(response.error);
           resolve({ error: response.error });

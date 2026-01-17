@@ -196,34 +196,34 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
       // We need to wait for reconnection and room rejoin before sending
       const socket = getSocket();
       
-      // Wait for socket to be connected (up to 5 seconds)
-      const waitForConnection = async (maxWait = 5000) => {
+      // Wait for socket to be connected (up to 8 seconds for camera/photo picker)
+      const waitForConnection = async (maxWait = 8000) => {
         const startTime = Date.now();
         while (Date.now() - startTime < maxWait) {
           const currentSocket = getSocket();
           if (currentSocket && currentSocket.connected) {
             // Give extra time for room rejoin after reconnection
-            await new Promise(resolve => setTimeout(resolve, 500));
+            await new Promise(resolve => setTimeout(resolve, 1000));
             return true;
           }
-          await new Promise(resolve => setTimeout(resolve, 200));
+          await new Promise(resolve => setTimeout(resolve, 300));
         }
         return false;
       };
       
       if (!socket || !socket.connected) {
-        // Socket disconnected (common on mobile when file picker opens)
+        // Socket disconnected (common on mobile when camera/file picker opens)
         console.log('Socket disconnected, waiting for reconnection...');
         setUploadStatus("reconnecting");
-        const reconnected = await waitForConnection(5000);
+        const reconnected = await waitForConnection(8000); // 8 seconds for camera
         
         if (!reconnected) {
           setUploadStatus("");
           setIsUploading(false);
+          alert('Connection lost. Please try uploading again.');
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
-          // Don't show alert - the connection lost toast should already be visible
           return;
         }
         console.log('Socket reconnected, proceeding with file upload');
