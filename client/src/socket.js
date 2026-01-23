@@ -22,12 +22,10 @@ console.log('🔌 Connecting to:', ENDPOINT);
 // Create a socket instance
 let socket;
 
-// Track if user is intentionally leaving (closing tab) vs just going to background
-let isIntentionalLeave = false;
-
-// Set intentional leave flag (called before navigating away from chat)
+// Set intentional leave flag (used by ChatPage for cleanup coordination)
 export const setIntentionalLeave = (value) => {
-  isIntentionalLeave = value;
+  // Flag used to coordinate cleanup between components
+  // The actual cleanup logic is handled in ChatPage.jsx
 };
 
 // Initialize socket connection

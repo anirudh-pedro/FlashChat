@@ -281,7 +281,6 @@ module.exports = {
   updateMessage,
   deleteMessage,
   clearRoomMessages,
-  refreshRoomTTL,
   MAX_MESSAGES_PER_ROOM,
   MESSAGES_TO_FETCH
 };

@@ -15,6 +15,7 @@
  * - Optional admin control mode (creator-only admin, no transfer)
  */
 
+const crypto = require('crypto');
 const { getRedisClient, isRedisConnected } = require('../src/config/redis');
 
 // Configuration
@@ -259,17 +260,17 @@ const getUsersInRoom = async (room) => {
     const userIds = await redis.sMembers(keys.roomUsers(room));
     
     const users = [];
-    for (const odId of userIds) {
-      const userData = await redis.hGetAll(keys.user(odId));
+    for (const socketId of userIds) {
+      const userData = await redis.hGetAll(keys.user(socketId));
       if (userData && userData.username) {
         users.push({
-          id: userData.id || odId,
+          id: userData.id || socketId,
           username: userData.username,
           room: userData.room
         });
       } else {
         // Clean up stale reference
-        await redis.sRem(keys.roomUsers(room), odId);
+        await redis.sRem(keys.roomUsers(room), socketId);
       }
     }
 
@@ -348,23 +349,7 @@ const isRoomActive = async (room) => {
   }
 };
 
-/**
- * Reattach user on reconnect (update socket ID)
- * @param {string} oldSocketId - Previous socket ID
- * @param {string} newSocketId - New socket ID
- * @param {string} username - Username
- * @param {string} room - Room ID
- * @returns {Promise<{user?: Object, error?: string}>}
- */
-const reattachUser = async (oldSocketId, newSocketId, username, room) => {
-  // Remove old socket reference if exists
-  await removeUser(oldSocketId);
-  
-  // Add with new socket ID
-  return addUser({ id: newSocketId, username, room });
-};
-
-// ==================== IN-MEMORY FALLBACK ====================
+// ==================== IN-MEMORY FALLBACK ==
 // Used when Redis is not connected
 
 const inMemoryUsers = [];
@@ -542,42 +527,7 @@ const isRoomAdminRequired = async (room) => {
   }
 };
 
-/**
- * Transfer admin to another user (generates new token for them)
- * @param {string} room - Room ID
- * @param {string} newAdminSocketId - New admin's socket ID
- * @returns {Promise<{success: boolean, adminToken?: string}>}
- */
-const transferAdmin = async (room, newAdminSocketId) => {
-  room = room.trim().toUpperCase();
-  
-  // Generate new token for the new admin
-  const newAdminToken = crypto.randomUUID ? crypto.randomUUID() : `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`;
-  
-  if (!isRedisConnected()) {
-    const roomData = inMemoryRooms.get(room);
-    if (roomData) {
-      roomData.adminSocketId = newAdminSocketId;
-      roomData.adminToken = newAdminToken;
-      return { success: true, adminToken: newAdminToken };
-    }
-    return { success: false };
-  }
-
-  try {
-    const redis = getRedisClient();
-    await redis.hSet(keys.roomMeta(room), {
-      adminSocketId: newAdminSocketId,
-      adminToken: newAdminToken
-    });
-    return { success: true, adminToken: newAdminToken };
-  } catch (error) {
-    console.error('❌ Error transferring admin:', error.message);
-    return { success: false };
-  }
-};
-
-// ==================== PENDING USERS FUNCTIONS ====================
+// ==================== PENDING USERS FUNCTIONS ==
 
 /**
  * Add a user to pending list
@@ -779,13 +729,11 @@ module.exports = {
   getRoomInfo,
   checkRoomCapacity,
   isRoomActive,
-  reattachUser,
   // Admin functions
   isRoomAdmin,
   getRoomAdmin,
   getRoomAdminToken,
   isRoomAdminRequired,
-  transferAdmin,
   // Pending user functions
   addPendingUser,
   getPendingUsers,
