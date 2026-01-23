@@ -22,10 +22,12 @@ console.log('🔌 Connecting to:', ENDPOINT);
 // Create a socket instance
 let socket;
 
+// Track intentional leave to avoid unwanted cleanup
+let isIntentionalLeave = false;
+
 // Set intentional leave flag (used by ChatPage for cleanup coordination)
 export const setIntentionalLeave = (value) => {
-  // Flag used to coordinate cleanup between components
-  // The actual cleanup logic is handled in ChatPage.jsx
+  isIntentionalLeave = value;
 };
 
 // Initialize socket connection
