@@ -134,17 +134,3 @@ export const kickUser = (targetSocketId, room, callback) => {
   if (!socket) return;
   socket.emit('kickUser', { targetSocketId, room }, callback);
 };
-
-export default {
-  initSocket,
-  getSocket,
-  disconnectSocket,
-  joinRoom,
-  sendMessage,
-  leaveRoom,
-  approveJoin,
-  rejectJoin,
-  cancelJoinRequest,
-  kickUser,
-  setIntentionalLeave
-};

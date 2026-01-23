@@ -446,34 +446,6 @@ const isRoomActiveInMemory = (room) => {
 
 // ==================== CLEANUP ====================
 
-/**
- * Cleanup function for graceful shutdown
- */
-const cleanupAllTimers = () => {
-  console.log('Cleaning up all room timers...');
-  inMemoryRooms.clear();
-  inMemoryUsers.length = 0;
-  console.log('Cleared 0 pending cleanup timers');
-};
-
-/**
- * Get all active room IDs
- * @returns {Promise<Array>}
- */
-const getActiveRoomIds = async () => {
-  if (!isRedisConnected()) {
-    return Array.from(inMemoryRooms.keys());
-  }
-
-  try {
-    const redis = getRedisClient();
-    const roomKeys = await redis.keys('room:*:users');
-    return roomKeys.map(key => key.replace('room:', '').replace(':users', ''));
-  } catch (error) {
-    return Array.from(inMemoryRooms.keys());
-  }
-};
-
 // ==================== ADMIN FUNCTIONS ====================
 
 /**
@@ -807,9 +779,7 @@ module.exports = {
   getRoomInfo,
   checkRoomCapacity,
   isRoomActive,
-  getActiveRoomIds,
   reattachUser,
-  cleanupAllTimers,
   // Admin functions
   isRoomAdmin,
   getRoomAdmin,

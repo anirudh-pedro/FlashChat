@@ -121,30 +121,3 @@ export const formatRoomName = (roomId) => {
 export const isLocationRoom = (roomId) => {
   return roomId && roomId.startsWith('LOC_');
 };
-
-/**
- * Extract coordinates from location room ID
- * @param {string} roomId - Location-based room ID
- * @returns {Object|null} - Object with lat and long or null if invalid
- */
-export const extractCoordinates = (roomId) => {
-  if (!isLocationRoom(roomId)) return null;
-  
-  const parts = roomId.split('_');
-  if (parts.length !== 3) return null;
-  
-  const lat = parseFloat(parts[1]);
-  const long = parseFloat(parts[2]);
-  
-  if (isNaN(lat) || isNaN(long)) return null;
-  
-  return { latitude: lat, longitude: long };
-};
-
-export default {
-  generateRoomId,
-  isValidRoomId,
-  formatRoomName,
-  isLocationRoom,
-  extractCoordinates
-};
