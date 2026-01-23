@@ -32,30 +32,26 @@ const ChatPage = () => {
   const joinMethod = params.get("joinMethod");
   const requireAdmin = params.get("requireAdmin") === "true";
   
-  // Use refs to avoid re-running effects when these values are used in callbacks
   const usernameRef = useRef(username);
   const roomRef = useRef(room);
   const hasJoinedRef = useRef(false);
-  const isInitialConnectionRef = useRef(true); // Track if this is the first connection
-  const isMountedRef = useRef(false); // Track if component is actually mounted
+  const isInitialConnectionRef = useRef(true); 
+  const isMountedRef = useRef(false); 
   
   useEffect(() => {
     usernameRef.current = username;
     roomRef.current = room;
   }, [username, room]);
 
-  // Handle visual viewport changes (keyboard open/close) - WhatsApp-like behavior
   useEffect(() => {
     const handleViewportResize = () => {
       if (window.visualViewport) {
-        // Use requestAnimationFrame to prevent layout thrashing
         requestAnimationFrame(() => {
           setViewportHeight(`${window.visualViewport.height}px`);
         });
       }
     };
 
-    // Set initial height
     if (window.visualViewport) {
       setViewportHeight(`${window.visualViewport.height}px`);
       window.visualViewport.addEventListener('resize', handleViewportResize);
@@ -80,16 +76,13 @@ const ChatPage = () => {
       return;
     }
 
-    // Prevent multiple joins
     if (hasJoinedRef.current) return;
 
-    // Initialize socket connection
     const socketInstance = initSocket();
     setSocket(socketInstance);
 
-    // Wait for connection before joining room
     const handleConnection = () => {
-      if (hasJoinedRef.current) return; // Prevent duplicate joins
+      if (hasJoinedRef.current) return; 
       
       joinRoom({ username, room, requireAdmin }, (response) => {
         if (response && response.error) {
@@ -101,8 +94,7 @@ const ChatPage = () => {
           toast.info("Waiting for admin approval...");
         } else {
           hasJoinedRef.current = true;
-          isMountedRef.current = true; // Mark as truly mounted after successful join
-          // Store admin token if provided
+          isMountedRef.current = true; 
           if (response && response.adminToken && room) {
             localStorage.setItem(`adminToken_${room}`, response.adminToken);
           }
@@ -116,15 +108,12 @@ const ChatPage = () => {
       socketInstance.once('connect', handleConnection);
     }
 
-    // Cleanup only on actual unmount (not StrictMode re-render)
     return () => {
       socketInstance.off('connect', handleConnection);
     };
-  }, []); // Keep empty - only run once on mount
+  }, []); 
 
-  // Separate cleanup effect that runs on actual page leave
   useEffect(() => {
-    // Handle tab/browser close - this is an intentional leave
     const handleBeforeUnload = () => {
       if (hasJoinedRef.current) {
         setIntentionalLeave(true);
@@ -132,14 +121,11 @@ const ChatPage = () => {
       }
     };
 
-    // Handle visibility change (user switches apps on mobile)
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-        // User switched to another app - DON'T leave room
-        // Socket might disconnect but we'll reconnect when visible
+       
         console.log('App went to background - staying in room');
       } else if (document.visibilityState === 'visible') {
-        // User came back - check if we need to reconnect
         console.log('App became visible - checking connection');
         const socketInstance = getSocket();
         if (socketInstance && !socketInstance.connected) {
@@ -156,8 +142,7 @@ const ChatPage = () => {
       window.removeEventListener('beforeunload', handleBeforeUnload);
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       
-      // Use a small timeout to distinguish between StrictMode remount and actual unmount
-      // StrictMode will remount immediately (within ~10ms), real navigation won't
+     
       const cleanupTimeout = setTimeout(() => {
         if (hasJoinedRef.current) {
           setIntentionalLeave(true);
@@ -169,12 +154,10 @@ const ChatPage = () => {
         }
       }, 100);
       
-      // Store timeout ID so it can be cleared if component remounts (StrictMode)
       window.__flashchatCleanupTimeout = cleanupTimeout;
     };
   }, []);
 
-  // Clear any pending cleanup on mount (handles StrictMode)
   useEffect(() => {
     if (window.__flashchatCleanupTimeout) {
       clearTimeout(window.__flashchatCleanupTimeout);
@@ -185,18 +168,15 @@ const ChatPage = () => {
   useEffect(() => {
     if (!socket) return;
 
-    // Listen for chat history (loaded from Redis on join/refresh)
     const handleChatHistory = (history) => {
       console.log(`📜 Loaded ${history.length} messages from history`);
       setMessages(history);
     };
 
-    // Listen for new messages
     const handleMessage = (message) => {
       setMessages((prevMessages) => [...prevMessages, message]);
     };
 
-    // Listen for room data (users list)
     const handleRoomData = ({ users, pendingUsers: pending }) => {
       setUsers(users);
       if (pending) {
@@ -204,24 +184,18 @@ const ChatPage = () => {
       }
     };
     
-    // Handle admin status update
     const handleAdminStatus = ({ isAdmin: adminStatus, adminToken }) => {
       setIsAdmin(adminStatus);
-      // Only show admin toast if:
-      // 1. User is actually admin
-      // 2. Not a nearby (location) room
-      // 3. Admin control was enabled (requireAdmin is true)
+      
       const isNearbyRoom = room && room.startsWith('LOC_');
       if (adminStatus && !isNearbyRoom && requireAdmin) {
         toast.success("You are the room admin");
       }
-      // Store admin token in localStorage for this room (always, for reconnection)
       if (adminStatus && adminToken && room) {
         localStorage.setItem(`adminToken_${room}`, adminToken);
       }
     };
     
-    // Handle incoming join request (admin only)
     const handleJoinRequest = ({ socketId, username: requestingUser, room: requestRoom }) => {
       toast.info(`${requestingUser} wants to join the room`, {
         autoClose: false,
@@ -231,12 +205,10 @@ const ChatPage = () => {
       setShowPendingPanel(true);
     };
     
-    // Handle pending users update
     const handlePendingUsersUpdate = ({ pendingUsers: updated }) => {
       setPendingUsers(updated);
     };
     
-    // Handle join approved (for pending users)
     const handleJoinApproved = ({ room: approvedRoom }) => {
       setIsPendingApproval(false);
       hasJoinedRef.current = true;
@@ -244,31 +216,26 @@ const ChatPage = () => {
       toast.success("Your join request was approved!");
     };
     
-    // Handle join rejected (for pending users)
     const handleJoinRejected = ({ reason }) => {
       setIsPendingApproval(false);
       toast.error(reason || "Your join request was rejected");
       setTimeout(() => navigate("/join"), 2000);
     };
     
-    // Handle being kicked from the room
     const handleKicked = ({ reason }) => {
       toast.error(reason || "You have been removed from the room");
       hasJoinedRef.current = false;
       setTimeout(() => navigate("/join"), 2000);
     };
 
-    // Listen for user joined notifications
     const handleUserJoined = (username) => {
       toast.info(`${username} joined the chat`);
     };
 
-    // Listen for user left notifications
     const handleUserLeft = (username) => {
       toast.info(`${username} left the chat`);
     };
 
-    // Listen for typing indicators
     const handleUserTyping = (username) => {
       setTypingUsers((prev) => {
         if (!prev.includes(username)) {
@@ -282,7 +249,6 @@ const ChatPage = () => {
       setTypingUsers((prev) => prev.filter((user) => user !== username));
     };
 
-    // Handle message edited
     const handleMessageEdited = ({ messageId, newText, editedAt }) => {
       setMessages((prevMessages) => 
         prevMessages.map((msg) => 
@@ -293,16 +259,13 @@ const ChatPage = () => {
       );
     };
 
-    // Handle message deleted
     const handleMessageDeleted = ({ messageId }) => {
       setMessages((prevMessages) => 
         prevMessages.filter((msg) => msg.id !== messageId)
       );
     };
     
-    // Handle reconnection - rejoin room automatically
     const handleReconnect = () => {
-      // Skip if this is the initial connection (already handled in first useEffect)
       if (isInitialConnectionRef.current) {
         isInitialConnectionRef.current = false;
         return;
@@ -311,7 +274,6 @@ const ChatPage = () => {
       console.log("Socket reconnected, rejoining room...");
       toast.info("Reconnected to chat");
       
-      // Use refs to get current values
       joinRoom({ username: usernameRef.current, room: roomRef.current }, (response) => {
         if (response && response.error) {
           toast.error("Failed to rejoin room: " + response.error);
@@ -322,13 +284,11 @@ const ChatPage = () => {
       });
     };
     
-    // Handle disconnection
     const handleDisconnect = (reason) => {
       console.log("Socket disconnected:", reason);
       if (reason === "io server disconnect") {
         toast.warning("Disconnected from server");
       } else if (reason !== "io client disconnect") {
-        // Don't show warning for intentional disconnects
         toast.warning("Connection lost, reconnecting...");
       }
     };
@@ -370,9 +330,8 @@ const ChatPage = () => {
       socket.off("joinRejected", handleJoinRejected);
       socket.off("kicked", handleKicked);
     };
-  }, [socket, navigate]); // Only socket and navigate as dependencies
+  }, [socket, navigate]); 
 
-  // Handle cancelling pending join request
   const handleCancelPending = () => {
     cancelJoinRequest(room, () => {});
     navigate("/join");
@@ -391,15 +350,14 @@ const ChatPage = () => {
     return new Promise((resolve) => {
       const socketInstance = getSocket();
       
-      // Set a timeout in case callback is never called (socket issues)
       const timeout = setTimeout(() => {
         console.error('File upload timeout - no response from server');
         toast.error('File upload timed out. Please try again.');
         resolve({ error: 'Upload timed out' });
-      }, 30000); // 30 second timeout
+      }, 30000); 
       
       socketInstance.emit("sendFile", fileData, (response) => {
-        clearTimeout(timeout); // Clear timeout on response
+        clearTimeout(timeout); 
         if (response && response.error) {
           toast.error(response.error);
           resolve({ error: response.error });
@@ -410,7 +368,6 @@ const ChatPage = () => {
     });
   };
 
-  // Admin approve join request
   const handleApproveJoin = (pendingSocketId) => {
     approveJoin(pendingSocketId, room, (response) => {
       if (response && response.error) {
@@ -421,7 +378,6 @@ const ChatPage = () => {
     });
   };
 
-  // Admin reject join request
   const handleRejectJoin = (pendingSocketId) => {
     rejectJoin(pendingSocketId, room, null, (response) => {
       if (response && response.error) {
@@ -450,24 +406,19 @@ const ChatPage = () => {
     });
   };
 
-  // Start editing a message - copies text to input box
   const startEdit = (messageId, text) => {
     setEditingMessage({ id: messageId, text });
   };
 
-  // Cancel editing
   const cancelEdit = () => {
     setEditingMessage(null);
   };
 
-  // Handle sending message (new or edited)
   const handleSendMessage = (message) => {
     if (editingMessage) {
-      // We're editing an existing message
       editMessage(editingMessage.id, message);
       setEditingMessage(null);
     } else {
-      // Send new message
       sendMessage(message);
     }
   };
@@ -490,7 +441,6 @@ const ChatPage = () => {
   const formattedRoomName = formatRoomName(room);
   const isLocationBased = isLocationRoom(room);
 
-  // Show pending approval screen if waiting for admin
   if (isPendingApproval) {
     return (
       <div 
@@ -556,7 +506,6 @@ const ChatPage = () => {
         onTogglePending={() => setShowPendingPanel(!showPendingPanel)}
       />
       
-      {/* Pending Users Panel (Admin only) */}
       {isAdmin && showPendingPanel && pendingUsers.length > 0 && (
         <div className="bg-neutral-900 border-b border-neutral-800 px-4 py-3">
           <div className="flex items-center justify-between mb-2">
@@ -598,7 +547,6 @@ const ChatPage = () => {
       )}
       
       <div className="flex flex-1 overflow-hidden relative min-h-0">
-        {/* Main chat area */}
         <div className={`flex-1 flex flex-col min-h-0 min-w-0 ${showUsersList ? 'hidden sm:flex' : 'flex'}`}>
           <MessageList 
             messages={messages} 
@@ -617,7 +565,6 @@ const ChatPage = () => {
           />
         </div>
         
-        {/* Users sidebar */}
         {showUsersList && (
           <div className="absolute sm:relative w-full sm:w-auto right-0 top-0 h-full z-20">
             <UsersList 

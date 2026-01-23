@@ -141,7 +141,6 @@ const JoinPage = () => {
       const normalizedUsername = username.trim().toLowerCase();
       const normalizedRoom = roomId.trim().toUpperCase();
       
-      // Navigate to chat page - actual join will happen there
       navigate(`/chat?room=${normalizedRoom}&username=${normalizedUsername}&joinMethod=roomId&requireAdmin=${requireAdmin}`);
     } else {
       handleJoinByLocation();
@@ -150,23 +149,18 @@ const JoinPage = () => {
 
   return (
     <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
-      {/* Animated Shiny Waves Background */}
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
-        {/* Bottom Wave layers */}
         <svg className="absolute w-full h-full" preserveAspectRatio="none" viewBox="0 0 1440 800">
-          {/* Wave 1 - Bottom */}
           <path 
             className="animate-wave-path-1"
             fill="rgba(255,255,255,0.03)"
             d="M0,600 C320,700 420,500 720,550 C1020,600 1200,700 1440,650 L1440,800 L0,800 Z"
           />
-          {/* Wave 2 - Middle */}
           <path 
             className="animate-wave-path-2"
             fill="rgba(255,255,255,0.04)"
             d="M0,650 C280,550 520,700 720,600 C920,500 1160,650 1440,580 L1440,800 L0,800 Z"
           />
-          {/* Wave 3 - Top */}
           <path 
             className="animate-wave-path-3"
             fill="rgba(255,255,255,0.025)"
@@ -174,13 +168,11 @@ const JoinPage = () => {
           />
         </svg>
         
-        {/* Pulsing Glow orbs - more visible */}
         <div className="absolute top-20 left-10 w-32 h-32 bg-white/[0.04] rounded-full blur-3xl animate-pulse-slow" />
         <div className="absolute bottom-32 right-16 w-40 h-40 bg-white/[0.03] rounded-full blur-3xl animate-pulse-slow animation-delay-2000" />
       </div>
 
       <div className="w-full max-w-[360px] relative z-10">
-        {/* Logo */}
         <div className="text-center mb-6 sm:mb-8">
           <div className="inline-flex items-center gap-2 mb-2">
             <div className="w-8 h-8 bg-neutral-200 rounded-lg flex items-center justify-center">
@@ -191,7 +183,6 @@ const JoinPage = () => {
           <p className="text-neutral-500 text-xs">Anonymous instant messaging</p>
         </div>
 
-        {/* Error */}
         {error && (
           <div className="mb-4 py-2.5 px-3 bg-neutral-900 border border-neutral-800 rounded-lg text-neutral-400 text-xs animate-shake">
             {error}
@@ -199,7 +190,6 @@ const JoinPage = () => {
         )}
 
         <form onSubmit={handleSubmit} className="space-y-5">
-          {/* Username */}
           <div>
             <label className="block text-neutral-500 text-[10px] uppercase tracking-widest mb-2">
               Name
@@ -215,7 +205,6 @@ const JoinPage = () => {
             />
           </div>
 
-          {/* Connection Type */}
           <div>
             <label className="block text-neutral-500 text-[10px] uppercase tracking-widest mb-3">
               Connect via
@@ -248,7 +237,6 @@ const JoinPage = () => {
             </div>
           </div>
 
-          {/* Room Code */}
           {joinMethod === 'roomId' && (
             <div className="animate-fadeIn">
               <label className="block text-neutral-500 text-[10px] uppercase tracking-widest mb-2">
@@ -284,7 +272,6 @@ const JoinPage = () => {
                 )}
               </div>
               
-              {/* Admin Control Toggle */}
               <div className="mt-4 p-3 bg-neutral-900 rounded-lg border border-neutral-800">
                 <label className="flex items-center justify-between cursor-pointer">
                   <div className="flex items-center gap-2.5">
@@ -324,7 +311,6 @@ const JoinPage = () => {
             </div>
           )}
 
-          {/* Submit */}
           <div className="pt-1">
             <button 
               type="submit" 
@@ -348,7 +334,6 @@ const JoinPage = () => {
           </div>
         </form>
 
-        {/* Footer */}
         <div className="mt-6 pt-4 border-t border-neutral-800">
           <div className="flex items-center justify-center gap-4 text-[10px] text-neutral-600">
             <span>No signup</span>
