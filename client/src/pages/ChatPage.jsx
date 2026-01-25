@@ -174,19 +174,34 @@ const ChatPage = () => {
     };
 
     const handleMessage = (message) => {
+      console.log('📨 Received message:', message.id, message.type, message.fileName || message.text?.substring(0, 20));
+      
       setMessages((prevMessages) => {
-        // Check if this message already exists (by id or duplicate file)
-        const isDuplicate = prevMessages.some(msg => 
-          msg.id === message.id || 
-          (message.type === 'file' && msg.fileName === message.fileName && 
-           msg.user === message.user && Math.abs(msg.createdAt - message.createdAt) < 5000)
-        );
+        console.log('Current messages count:', prevMessages.length);
         
-        if (isDuplicate) {
-          console.log('Duplicate message detected, skipping:', message.id);
+        // Check if this message already exists (by id)
+        const existingById = prevMessages.find(msg => msg.id === message.id);
+        if (existingById) {
+          console.log('⚠️ Duplicate message by ID, skipping:', message.id);
           return prevMessages;
         }
         
+        // For file messages, also check by content to catch any duplicates
+        if (message.type === 'file') {
+          const duplicateFile = prevMessages.find(msg => 
+            msg.type === 'file' && 
+            msg.fileName === message.fileName && 
+            msg.user === message.user && 
+            Math.abs(msg.createdAt - message.createdAt) < 3000
+          );
+          
+          if (duplicateFile) {
+            console.log('⚠️ Duplicate file message, skipping:', message.fileName);
+            return prevMessages;
+          }
+        }
+        
+        console.log('✅ Adding new message:', message.id);
         return [...prevMessages, message];
       });
     };
@@ -378,10 +393,13 @@ const ChatPage = () => {
         resolve({ error: 'Upload timed out' });
       }, 30000); 
       
+      console.log('📤 Sending file with tempId:', fileData.tempId);
+      
       socketInstance.emit("sendFile", fileData, (response) => {
         clearTimeout(timeout); 
         if (response && response.error) {
           toast.error(response.error);
+          console.log('❌ File upload failed:', fileData.tempId);
           // Update temp message to failed
           if (fileData.tempId) {
             setMessages(prev => prev.map(msg => 
@@ -392,11 +410,16 @@ const ChatPage = () => {
           }
           resolve({ error: response.error });
         } else {
+          console.log('✅ File upload success, removing temp message:', fileData.tempId);
           // Success - remove temp message immediately, server will broadcast the real one
           if (fileData.tempId) {
-            setMessages(prev => prev.filter(msg => 
-              msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
-            ));
+            setMessages(prev => {
+              const filtered = prev.filter(msg => 
+                msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
+              );
+              console.log('🗑️ Temp message removed. Before:', prev.length, 'After:', filtered.length);
+              return filtered;
+            });
           }
           resolve({ success: true });
         }
@@ -406,16 +429,21 @@ const ChatPage = () => {
 
   const handleLocalFilePreview = (filePreview) => {
     if (filePreview.status === 'uploading') {
+      console.log('➕ Adding temp file preview:', filePreview.id, filePreview.fileName);
       // Add new preview message (only called once per file)
-      setMessages(prev => [...prev, {
-        ...filePreview,
-        tempId: filePreview.id,
-        id: filePreview.id,
-        user: username,
-        createdAt: Date.now(),
-        type: 'file'
-      }]);
+      setMessages(prev => {
+        console.log('Messages before adding temp:', prev.length);
+        return [...prev, {
+          ...filePreview,
+          tempId: filePreview.id,
+          id: filePreview.id,
+          user: username,
+          createdAt: Date.now(),
+          type: 'file'
+        }];
+      });
     } else if (filePreview.status === 'failed') {
+      console.log('❌ Updating temp message to failed:', filePreview.id);
       // Update to failed status
       setMessages(prev => prev.map(msg => 
         (msg.id === filePreview.id || msg.tempId === filePreview.id)
