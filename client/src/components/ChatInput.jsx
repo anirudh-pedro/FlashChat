@@ -90,11 +90,17 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     onSendMessage(trimmedMessage);
     setMessage("");
     
-    // Reset textarea height
+    // Reset textarea height and maintain focus to keep keyboard open
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      // Keep focus on textarea to prevent mobile keyboard from closing
-      textareaRef.current.focus();
+      // Small delay to prevent keyboard from closing on mobile
+      setTimeout(() => {
+        if (textareaRef.current) {
+          textareaRef.current.focus();
+          // Scroll to keep input visible
+          textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+        }
+      }, 0);
     }
   };
 

@@ -515,7 +515,7 @@ const ChatPage = () => {
 
   if (isPendingApproval) {
     return (
-      <div className="flex flex-col items-center justify-center w-full h-screen bg-neutral-950 fixed inset-0">
+      <div className="flex flex-col items-center justify-center w-full h-dvh bg-neutral-950">
         <div className="w-full max-w-[360px] p-4 text-center">
           <div className="bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-xl p-8">
             <div className="mb-6">
@@ -544,7 +544,7 @@ const ChatPage = () => {
   }
 
   return (
-    <div className="flex flex-col w-full h-screen bg-neutral-950 fixed inset-0 overflow-hidden">
+    <div className="flex flex-col w-full h-dvh bg-neutral-950">
       <ToastContainer 
         position="top-right" 
         autoClose={3000}
