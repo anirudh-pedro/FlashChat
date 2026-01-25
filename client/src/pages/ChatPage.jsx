@@ -174,7 +174,21 @@ const ChatPage = () => {
     };
 
     const handleMessage = (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      setMessages((prevMessages) => {
+        // Check if this message already exists (by id or duplicate file)
+        const isDuplicate = prevMessages.some(msg => 
+          msg.id === message.id || 
+          (message.type === 'file' && msg.fileName === message.fileName && 
+           msg.user === message.user && Math.abs(msg.createdAt - message.createdAt) < 5000)
+        );
+        
+        if (isDuplicate) {
+          console.log('Duplicate message detected, skipping:', message.id);
+          return prevMessages;
+        }
+        
+        return [...prevMessages, message];
+      });
     };
 
     const handleRoomData = ({ users, pendingUsers: pending }) => {
