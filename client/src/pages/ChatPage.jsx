@@ -20,7 +20,6 @@ const ChatPage = () => {
   const [showUsersList, setShowUsersList] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
   const [editingMessage, setEditingMessage] = useState(null); // { id, text }
-  const [viewportHeight, setViewportHeight] = useState('100%');
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [showPendingPanel, setShowPendingPanel] = useState(false);
@@ -42,27 +41,6 @@ const ChatPage = () => {
     usernameRef.current = username;
     roomRef.current = room;
   }, [username, room]);
-
-  useEffect(() => {
-    const handleViewportResize = () => {
-      if (window.visualViewport) {
-        requestAnimationFrame(() => {
-          setViewportHeight(`${window.visualViewport.height}px`);
-        });
-      }
-    };
-
-    if (window.visualViewport) {
-      setViewportHeight(`${window.visualViewport.height}px`);
-      window.visualViewport.addEventListener('resize', handleViewportResize);
-    }
-
-    return () => {
-      if (window.visualViewport) {
-        window.visualViewport.removeEventListener('resize', handleViewportResize);
-      }
-    };
-  }, []);
 
   useEffect(() => {
     if (!username || !room) {
@@ -537,10 +515,7 @@ const ChatPage = () => {
 
   if (isPendingApproval) {
     return (
-      <div 
-        className="flex flex-col items-center justify-center w-full bg-neutral-950"
-        style={{ height: viewportHeight }}
-      >
+      <div className="flex flex-col items-center justify-center w-full h-screen bg-neutral-950 fixed inset-0">
         <div className="w-full max-w-[360px] p-4 text-center">
           <div className="bg-neutral-900/80 backdrop-blur-sm border border-neutral-800 rounded-xl p-8">
             <div className="mb-6">
@@ -569,10 +544,7 @@ const ChatPage = () => {
   }
 
   return (
-    <div 
-      className="flex flex-col w-full overflow-hidden bg-neutral-950"
-      style={{ height: viewportHeight }}
-    >
+    <div className="flex flex-col w-full h-screen bg-neutral-950 fixed inset-0 overflow-hidden">
       <ToastContainer 
         position="top-right" 
         autoClose={3000}
