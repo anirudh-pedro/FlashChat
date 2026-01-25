@@ -90,17 +90,10 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     onSendMessage(trimmedMessage);
     setMessage("");
     
-    // Reset textarea height and maintain focus to keep keyboard open
+    // Reset textarea height without losing focus (prevents keyboard flicker)
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      // Small delay to prevent keyboard from closing on mobile
-      setTimeout(() => {
-        if (textareaRef.current) {
-          textareaRef.current.focus();
-          // Scroll to keep input visible
-          textareaRef.current.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
-        }
-      }, 0);
+      // Don't blur - keep focus to maintain keyboard
     }
   };
 
