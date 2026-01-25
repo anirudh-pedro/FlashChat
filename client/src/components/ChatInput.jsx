@@ -3,11 +3,9 @@ import { FaPaperPlane, FaSmile, FaTimes, FaPaperclip, FaPen } from "react-icons/
 import EmojiPicker from "emoji-picker-react";
 import { getSocket } from "../socket";
 
-const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) => {
+const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, onLocalFilePreview }) => {
   const [message, setMessage] = useState("");
   const [showEmojiPicker, setShowEmojiPicker] = useState(false);
-  const [isUploading, setIsUploading] = useState(false);
-  const [uploadStatus, setUploadStatus] = useState(""); // "reconnecting", "sending", ""
   const emojiPickerRef = useRef(null);
   const emojiButtonRef = useRef(null);
   const textareaRef = useRef(null);
@@ -188,21 +186,42 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
       return;
     }
 
-    setIsUploading(true);
-    setUploadStatus("preparing");
-
     try {
-      // Mobile file picker causes browser to go to background, disconnecting WebSocket
-      // We need to wait for reconnection and room rejoin before sending
+      // Convert file to base64 immediately for preview
+      const base64Data = await new Promise((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(reader.result);
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+
+      // Create temporary ID for local preview
+      const tempId = `temp_${Date.now()}_${Math.random()}`;
+      
+      // Show file immediately in chat with loading state
+      const filePreview = {
+        id: tempId,
+        fileName: file.name,
+        fileType: file.type,
+        fileSize: file.size,
+        fileData: base64Data,
+        isImage: file.type.startsWith('image/'),
+        status: 'uploading' // uploading, sent, failed
+      };
+      
+      // Send to parent to display in messages
+      if (onLocalFilePreview) {
+        onLocalFilePreview(filePreview);
+      }
+
+      // Wait for socket connection if needed
       const socket = getSocket();
       
-      // Wait for socket to be connected (up to 8 seconds for camera/photo picker)
       const waitForConnection = async (maxWait = 8000) => {
         const startTime = Date.now();
         while (Date.now() - startTime < maxWait) {
           const currentSocket = getSocket();
           if (currentSocket && currentSocket.connected) {
-            // Give extra time for room rejoin after reconnection
             await new Promise(resolve => setTimeout(resolve, 1000));
             return true;
           }
@@ -212,35 +231,24 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
       };
       
       if (!socket || !socket.connected) {
-        // Socket disconnected (common on mobile when camera/file picker opens)
         console.log('Socket disconnected, waiting for reconnection...');
-        setUploadStatus("reconnecting");
-        const reconnected = await waitForConnection(8000); // 8 seconds for camera
+        const reconnected = await waitForConnection(8000);
         
         if (!reconnected) {
-          setUploadStatus("");
-          setIsUploading(false);
-          alert('Connection lost. Please try uploading again.');
+          // Update status to failed
+          if (onLocalFilePreview) {
+            onLocalFilePreview({ ...filePreview, status: 'failed' });
+          }
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
           return;
         }
-        console.log('Socket reconnected, proceeding with file upload');
       }
-      
-      setUploadStatus("sending");
 
-      // Convert file to base64
-      const base64Data = await new Promise((resolve, reject) => {
-        const reader = new FileReader();
-        reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
-        reader.readAsDataURL(file);
-      });
-
-      // Send file via socket and wait for response
+      // Send file via socket
       const result = await onSendFile({
+        tempId,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
@@ -248,15 +256,20 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
       });
       
       if (result && result.error) {
-        // Error already shown via toast in parent
-        console.error('File send failed:', result.error);
+        // Update status to failed
+        if (onLocalFilePreview) {
+          onLocalFilePreview({ ...filePreview, status: 'failed' });
+        }
+      } else {
+        // Update status to sent
+        if (onLocalFilePreview) {
+          onLocalFilePreview({ ...filePreview, status: 'sent' });
+        }
       }
     } catch (error) {
       console.error('Error reading file:', error);
       alert('Failed to read file. Please try again.');
     } finally {
-      setIsUploading(false);
-      setUploadStatus("");
       // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
@@ -270,22 +283,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
 
   return (
     <div className="bg-neutral-900 border-t border-neutral-800 px-2 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
-      {/* File upload loader overlay */}
-      {isUploading && (
-        <div className="fixed inset-0 bg-black/60 backdrop-blur-sm z-50 flex items-center justify-center">
-          <div className="bg-neutral-900 border border-neutral-800 rounded-2xl p-6 flex flex-col items-center gap-4 shadow-2xl">
-            <div className="w-12 h-12 border-4 border-neutral-700 border-t-white rounded-full animate-spin" />
-            <p className="text-white font-medium text-lg">
-              {uploadStatus === "reconnecting" ? "Reconnecting..." : 
-               uploadStatus === "sending" ? "Sending file..." : "Preparing..."}
-            </p>
-            <p className="text-gray-400 text-sm">
-              {uploadStatus === "reconnecting" ? "Please wait while we restore connection" : "Please wait"}
-            </p>
-          </div>
-        </div>
-      )}
-
       {/* Editing indicator */}
       {editingMessage && (
         <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-neutral-800 max-w-5xl mx-auto">
@@ -391,20 +388,11 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit }) 
         <button 
           type="button"
           onClick={() => fileInputRef.current?.click()}
-          disabled={isUploading}
-          className={`p-1.5 sm:p-2 md:p-2.5 rounded-lg sm:rounded-xl transition-colors flex-shrink-0 cursor-pointer flex items-center justify-center ${
-            isUploading 
-              ? 'text-gray-500 cursor-not-allowed' 
-              : 'text-gray-300 hover:bg-neutral-800'
-          }`}
+          className="p-1.5 sm:p-2 md:p-2.5 rounded-lg sm:rounded-xl transition-colors flex-shrink-0 cursor-pointer flex items-center justify-center text-gray-300 hover:bg-neutral-800"
           aria-label="Attach file"
           title="Attach file or image"
         >
-          {isUploading ? (
-            <div className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5 border-2 border-gray-500 border-t-white rounded-full animate-spin" />
-          ) : (
-            <FaPaperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
-          )}
+          <FaPaperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
         </button>
 
         {/* Emoji button - hidden on mobile, tablets, and small laptops */}

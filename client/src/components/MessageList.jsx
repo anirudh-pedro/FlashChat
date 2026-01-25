@@ -1,7 +1,7 @@
 import React, { useEffect, useRef } from "react";
 import Message from "./Message";
 
-const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, onStartEdit }) => {
+const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, onStartEdit, onRetryUpload }) => {
   const messagesEndRef = useRef(null);
 
   // Auto-scroll to bottom when new messages arrive
@@ -77,6 +77,7 @@ const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, on
                   onEditMessage={onEditMessage}
                   onDeleteMessage={onDeleteMessage}
                   onStartEdit={onStartEdit}
+                  onRetryUpload={onRetryUpload}
                   showUsername={!item.isSameUserAsPrev}
                 />
               </div>

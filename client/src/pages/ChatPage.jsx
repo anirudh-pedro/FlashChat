@@ -174,7 +174,17 @@ const ChatPage = () => {
     };
 
     const handleMessage = (message) => {
-      setMessages((prevMessages) => [...prevMessages, message]);
+      setMessages((prevMessages) => {
+        // Check if this is a file message that might replace a temp message
+        if (message.type === 'file' && message.user === username) {
+          // Remove any temp messages that are now sent
+          const filtered = prevMessages.filter(msg => 
+            !(msg.tempId && msg.status === 'sent' && msg.fileName === message.fileName)
+          );
+          return [...filtered, message];
+        }
+        return [...prevMessages, message];
+      });
     };
 
     const handleRoomData = ({ users, pendingUsers: pending }) => {
@@ -356,16 +366,92 @@ const ChatPage = () => {
         resolve({ error: 'Upload timed out' });
       }, 30000); 
       
+      // If this is a retry, update the temp message status to uploading
+      if (fileData.tempId) {
+        setMessages(prev => prev.map(msg => 
+          (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
+            ? { ...msg, status: 'uploading' }
+            : msg
+        ));
+      }
+      
       socketInstance.emit("sendFile", fileData, (response) => {
         clearTimeout(timeout); 
         if (response && response.error) {
           toast.error(response.error);
+          // Update temp message to failed
+          if (fileData.tempId) {
+            setMessages(prev => prev.map(msg => 
+              (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
+                ? { ...msg, status: 'failed' }
+                : msg
+            ));
+          }
           resolve({ error: response.error });
         } else {
+          // Success - temp message will be replaced by real message from server
+          if (fileData.tempId) {
+            setMessages(prev => prev.map(msg => 
+              (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
+                ? { ...msg, status: 'sent' }
+                : msg
+            ));
+          }
           resolve({ success: true });
         }
       });
     });
+  };
+
+  const handleLocalFilePreview = (filePreview) => {
+    if (filePreview.status === 'uploading') {
+      // Add new preview message or update existing
+      setMessages(prev => {
+        const existingIndex = prev.findIndex(msg => 
+          msg.id === filePreview.id || msg.tempId === filePreview.id
+        );
+        
+        if (existingIndex >= 0) {
+          // Update existing
+          const updated = [...prev];
+          updated[existingIndex] = {
+            ...updated[existingIndex],
+            ...filePreview,
+            tempId: filePreview.id,
+            user: username,
+            createdAt: Date.now(),
+            type: 'file'
+          };
+          return updated;
+        } else {
+          // Add new
+          return [...prev, {
+            ...filePreview,
+            tempId: filePreview.id,
+            id: filePreview.id,
+            user: username,
+            createdAt: Date.now(),
+            type: 'file'
+          }];
+        }
+      });
+    } else {
+      // Update status (sent/failed)
+      setMessages(prev => prev.map(msg => 
+        (msg.id === filePreview.id || msg.tempId === filePreview.id)
+          ? { ...msg, status: filePreview.status }
+          : msg
+      ));
+    }
+  };
+
+  const handleRetryUpload = (messageId, fileData) => {
+    // Retry uploading the file
+    const fileToRetry = {
+      ...fileData,
+      tempId: messageId
+    };
+    sendFile(fileToRetry);
   };
 
   const handleApproveJoin = (pendingSocketId) => {
@@ -553,6 +639,7 @@ const ChatPage = () => {
             currentUser={username}
             onStartEdit={startEdit}
             onDeleteMessage={deleteMessage}
+            onRetryUpload={handleRetryUpload}
           />
           
           <TypingIndicator typingUsers={typingUsers} />
@@ -560,6 +647,7 @@ const ChatPage = () => {
           <ChatInput 
             onSendMessage={handleSendMessage}
             onSendFile={sendFile}
+            onLocalFilePreview={handleLocalFilePreview}
             editingMessage={editingMessage}
             onCancelEdit={cancelEdit}
           />

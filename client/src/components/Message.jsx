@@ -1,8 +1,8 @@
 import React, { useState, useRef, useEffect } from "react";
-import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV, FaCopy } from "react-icons/fa";
+import { FaFileAlt, FaFilePdf, FaFileWord, FaDownload, FaTimes, FaEdit, FaTrash, FaEllipsisV, FaCopy, FaRedoAlt } from "react-icons/fa";
 
-const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStartEdit, showUsername = true }) => {
-  const { id, user, text, createdAt, type, fileName, fileType, fileSize, fileData, isImage, isEdited } = message;
+const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStartEdit, onRetryUpload, showUsername = true }) => {
+  const { id, user, text, createdAt, type, fileName, fileType, fileSize, fileData, isImage, isEdited, status, tempId } = message;
   const [showImageModal, setShowImageModal] = useState(false);
   const [showMenu, setShowMenu] = useState(false);
   const [showDeleteConfirm, setShowDeleteConfirm] = useState(false);
@@ -148,42 +148,126 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
 
   // Render file/image content
   const renderFileContent = () => {
+    const isUploading = status === 'uploading';
+    const isFailed = status === 'failed';
+    
     if (isImage) {
       return (
-        <>
+        <div className="relative">
           <div 
-            className="cursor-pointer rounded-lg overflow-hidden"
-            onClick={() => setShowImageModal(true)}
+            className="cursor-pointer rounded-lg overflow-hidden relative"
+            onClick={() => !isUploading && !isFailed && setShowImageModal(true)}
           >
             <img 
               src={fileData} 
               alt={fileName}
-              className="max-w-full max-h-64 object-contain rounded-lg hover:opacity-90 transition-opacity"
+              className={`max-w-full max-h-64 object-contain rounded-lg transition-opacity ${
+                isUploading ? 'opacity-50' : isFailed ? 'opacity-30' : 'hover:opacity-90'
+              }`}
             />
+            
+            {/* Loading overlay */}
+            {isUploading && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
+                <div className="flex flex-col items-center gap-2">
+                  <div className="w-10 h-10 border-3 border-white/30 border-t-white rounded-full animate-spin" />
+                  <span className="text-white text-xs font-medium">Sending...</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Failed overlay with retry */}
+            {isFailed && (
+              <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[1px]">
+                <div className="flex flex-col items-center gap-3">
+                  <div className="w-12 h-12 bg-red-500/20 rounded-full flex items-center justify-center">
+                    <FaTimes className="text-red-400" size={24} />
+                  </div>
+                  <button
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      if (onRetryUpload) {
+                        onRetryUpload(tempId || id, {
+                          fileName,
+                          fileType,
+                          fileSize,
+                          fileData,
+                          isImage
+                        });
+                      }
+                    }}
+                    className="px-4 py-2 bg-white text-neutral-900 rounded-lg hover:bg-gray-100 transition-colors flex items-center gap-2 font-medium text-sm shadow-lg"
+                  >
+                    <FaRedoAlt size={12} />
+                    Retry
+                  </button>
+                </div>
+              </div>
+            )}
           </div>
           <div className="text-xs text-gray-500 mt-1 truncate">{fileName}</div>
-        </>
+        </div>
       );
     }
 
     // Non-image file
     return (
-      <div 
-        className={`flex items-center gap-3 p-3 rounded-lg cursor-pointer hover:opacity-80 transition-opacity ${
-          isOwnMessage ? 'bg-neutral-100' : 'bg-neutral-800'
-        }`}
-        onClick={handleDownload}
-      >
-        {getFileIcon()}
-        <div className="flex-1 min-w-0">
-          <div className={`text-sm font-medium truncate ${isOwnMessage ? 'text-neutral-900' : 'text-white'}`}>
-            {fileName}
+      <div className="relative">
+        <div 
+          className={`flex items-center gap-3 p-3 rounded-lg transition-opacity relative ${
+            isOwnMessage ? 'bg-neutral-100' : 'bg-neutral-800'
+          } ${
+            isUploading ? 'opacity-50' : isFailed ? 'opacity-30 cursor-default' : 'cursor-pointer hover:opacity-80'
+          }`}
+          onClick={() => !isUploading && !isFailed && handleDownload()}
+        >
+          {getFileIcon()}
+          <div className="flex-1 min-w-0">
+            <div className={`text-sm font-medium truncate ${isOwnMessage ? 'text-neutral-900' : 'text-white'}`}>
+              {fileName}
+            </div>
+            <div className={`text-xs ${isOwnMessage ? 'text-neutral-500' : 'text-gray-400'}`}>
+              {formatFileSize(fileSize)}
+            </div>
           </div>
-          <div className={`text-xs ${isOwnMessage ? 'text-neutral-500' : 'text-gray-400'}`}>
-            {formatFileSize(fileSize)}
-          </div>
+          {!isUploading && !isFailed && (
+            <FaDownload className={`flex-shrink-0 ${isOwnMessage ? 'text-neutral-600' : 'text-gray-400'}`} size={16} />
+          )}
+          
+          {/* Loading overlay for files */}
+          {isUploading && (
+            <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-lg">
+              <div className="flex items-center gap-2">
+                <div className="w-6 h-6 border-2 border-white/30 border-t-white rounded-full animate-spin" />
+                <span className="text-white text-xs font-medium">Sending...</span>
+              </div>
+            </div>
+          )}
         </div>
-        <FaDownload className={`flex-shrink-0 ${isOwnMessage ? 'text-neutral-600' : 'text-gray-400'}`} size={16} />
+        
+        {/* Failed state for files - retry button below */}
+        {isFailed && (
+          <div className="mt-2 flex items-center justify-center">
+            <button
+              onClick={(e) => {
+                e.stopPropagation();
+                if (onRetryUpload) {
+                  onRetryUpload(tempId || id, {
+                    fileName,
+                    fileType,
+                    fileSize,
+                    fileData,
+                    isImage
+                  });
+                }
+              }}
+              className="px-4 py-2 bg-red-500/20 text-red-400 rounded-lg hover:bg-red-500/30 transition-colors flex items-center gap-2 font-medium text-sm border border-red-500/30"
+            >
+              <FaRedoAlt size={12} />
+              Tap to retry
+            </button>
+          </div>
+        )}
       </div>
     );
   };
