@@ -174,17 +174,7 @@ const ChatPage = () => {
     };
 
     const handleMessage = (message) => {
-      setMessages((prevMessages) => {
-        // Check if this is a file message that might replace a temp message
-        if (message.type === 'file' && message.user === username) {
-          // Remove any temp messages that are now sent
-          const filtered = prevMessages.filter(msg => 
-            !(msg.tempId && msg.status === 'sent' && msg.fileName === message.fileName)
-          );
-          return [...filtered, message];
-        }
-        return [...prevMessages, message];
-      });
+      setMessages((prevMessages) => [...prevMessages, message]);
     };
 
     const handleRoomData = ({ users, pendingUsers: pending }) => {
@@ -389,12 +379,10 @@ const ChatPage = () => {
           }
           resolve({ error: response.error });
         } else {
-          // Success - temp message will be replaced by real message from server
+          // Success - remove temp message, real message will come from server
           if (fileData.tempId) {
-            setMessages(prev => prev.map(msg => 
-              (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
-                ? { ...msg, status: 'sent' }
-                : msg
+            setMessages(prev => prev.filter(msg => 
+              msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
             ));
           }
           resolve({ success: true });
