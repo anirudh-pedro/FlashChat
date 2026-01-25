@@ -353,17 +353,16 @@ const ChatPage = () => {
       const timeout = setTimeout(() => {
         console.error('File upload timeout - no response from server');
         toast.error('File upload timed out. Please try again.');
+        // Update temp message to failed
+        if (fileData.tempId) {
+          setMessages(prev => prev.map(msg => 
+            (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
+              ? { ...msg, status: 'failed' }
+              : msg
+          ));
+        }
         resolve({ error: 'Upload timed out' });
       }, 30000); 
-      
-      // If this is a retry, update the temp message status to uploading
-      if (fileData.tempId) {
-        setMessages(prev => prev.map(msg => 
-          (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
-            ? { ...msg, status: 'uploading' }
-            : msg
-        ));
-      }
       
       socketInstance.emit("sendFile", fileData, (response) => {
         clearTimeout(timeout); 
@@ -379,7 +378,7 @@ const ChatPage = () => {
           }
           resolve({ error: response.error });
         } else {
-          // Success - remove temp message, real message will come from server
+          // Success - remove temp message immediately, server will broadcast the real one
           if (fileData.tempId) {
             setMessages(prev => prev.filter(msg => 
               msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
@@ -393,41 +392,20 @@ const ChatPage = () => {
 
   const handleLocalFilePreview = (filePreview) => {
     if (filePreview.status === 'uploading') {
-      // Add new preview message or update existing
-      setMessages(prev => {
-        const existingIndex = prev.findIndex(msg => 
-          msg.id === filePreview.id || msg.tempId === filePreview.id
-        );
-        
-        if (existingIndex >= 0) {
-          // Update existing
-          const updated = [...prev];
-          updated[existingIndex] = {
-            ...updated[existingIndex],
-            ...filePreview,
-            tempId: filePreview.id,
-            user: username,
-            createdAt: Date.now(),
-            type: 'file'
-          };
-          return updated;
-        } else {
-          // Add new
-          return [...prev, {
-            ...filePreview,
-            tempId: filePreview.id,
-            id: filePreview.id,
-            user: username,
-            createdAt: Date.now(),
-            type: 'file'
-          }];
-        }
-      });
-    } else {
-      // Update status (sent/failed)
+      // Add new preview message (only called once per file)
+      setMessages(prev => [...prev, {
+        ...filePreview,
+        tempId: filePreview.id,
+        id: filePreview.id,
+        user: username,
+        createdAt: Date.now(),
+        type: 'file'
+      }]);
+    } else if (filePreview.status === 'failed') {
+      // Update to failed status
       setMessages(prev => prev.map(msg => 
         (msg.id === filePreview.id || msg.tempId === filePreview.id)
-          ? { ...msg, status: filePreview.status }
+          ? { ...msg, status: 'failed' }
           : msg
       ));
     }

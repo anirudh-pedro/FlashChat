@@ -258,14 +258,10 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       if (result && result.error) {
         // Update status to failed
         if (onLocalFilePreview) {
-          onLocalFilePreview({ ...filePreview, status: 'failed' });
-        }
-      } else {
-        // Update status to sent
-        if (onLocalFilePreview) {
-          onLocalFilePreview({ ...filePreview, status: 'sent' });
+          onLocalFilePreview({ id: tempId, status: 'failed' });
         }
       }
+      // Success case - temp message will be removed by sendFile
     } catch (error) {
       console.error('Error reading file:', error);
       alert('Failed to read file. Please try again.');
