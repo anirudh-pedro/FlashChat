@@ -376,47 +376,60 @@ const ChatPage = () => {
     return new Promise((resolve) => {
       const socketInstance = getSocket();
       
+      // Longer timeout for camera uploads (60 seconds)
       const timeout = setTimeout(() => {
-        console.error('File upload timeout - no response from server');
-        toast.error('File upload timed out. Please try again.');
-        // Update temp message to failed
+        console.error('⏱️ File upload timeout - no response from server');
+        toast.error('File upload timed out. Tap retry on the image.');
+        // Update temp message to failed with all data preserved
         if (fileData.tempId) {
           setMessages(prev => prev.map(msg => 
             (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
-              ? { ...msg, status: 'failed' }
+              ? { 
+                  ...msg, 
+                  status: 'failed',
+                  fileName: fileData.fileName,
+                  fileType: fileData.fileType,
+                  fileSize: fileData.fileSize,
+                  fileData: fileData.fileData,
+                  isImage: fileData.fileType?.startsWith('image/')
+                }
               : msg
           ));
         }
         resolve({ error: 'Upload timed out' });
-      }, 30000); 
+      }, 60000); 
       
-      console.log('📤 Sending file with tempId:', fileData.tempId);
+      console.log('📤 Sending file:', fileData.fileName);
       
       socketInstance.emit("sendFile", fileData, (response) => {
         clearTimeout(timeout); 
         if (response && response.error) {
-          toast.error(response.error);
-          console.log('❌ File upload failed:', fileData.tempId);
-          // Update temp message to failed
+          toast.error('Upload failed: ' + response.error);
+          console.log('❌ File upload failed:', fileData.fileName);
+          // Update temp message to failed with all data preserved
           if (fileData.tempId) {
             setMessages(prev => prev.map(msg => 
               (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
-                ? { ...msg, status: 'failed' }
+                ? { 
+                    ...msg, 
+                    status: 'failed',
+                    fileName: fileData.fileName,
+                    fileType: fileData.fileType,
+                    fileSize: fileData.fileSize,
+                    fileData: fileData.fileData,
+                    isImage: fileData.fileType?.startsWith('image/')
+                  }
                 : msg
             ));
           }
           resolve({ error: response.error });
         } else {
-          console.log('✅ File upload success, removing temp message:', fileData.tempId);
+          console.log('✅ File uploaded:', fileData.fileName);
           // Success - remove temp message immediately, server will broadcast the real one
           if (fileData.tempId) {
-            setMessages(prev => {
-              const filtered = prev.filter(msg => 
-                msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
-              );
-              console.log('🗑️ Temp message removed. Before:', prev.length, 'After:', filtered.length);
-              return filtered;
-            });
+            setMessages(prev => prev.filter(msg => 
+              msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
+            ));
           }
           resolve({ success: true });
         }
