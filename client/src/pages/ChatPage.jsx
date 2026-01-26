@@ -172,18 +172,35 @@ const ChatPage = () => {
           return prevMessages;
         }
         
-        // For file messages, also check by content to catch any duplicates
+        // For file messages, remove any temp message and add the real one
         if (message.type === 'file') {
-          const duplicateFile = prevMessages.find(msg => 
+          // Remove temp message if it exists (by checking user and fileName match)
+          const filteredMessages = prevMessages.filter(msg => {
+            // Keep all non-temp messages
+            if (!msg.tempId && !msg.status) return true;
+            // Remove temp messages that match this file
+            if (msg.type === 'file' && 
+                msg.fileName === message.fileName && 
+                msg.user === message.user &&
+                (msg.status === 'uploading' || msg.tempId)) {
+              return false;
+            }
+            return true;
+          });
+          
+          // Check if this exact message already exists in filtered list
+          const duplicate = filteredMessages.find(msg => 
             msg.type === 'file' && 
             msg.fileName === message.fileName && 
             msg.user === message.user && 
             Math.abs(msg.createdAt - message.createdAt) < 3000
           );
           
-          if (duplicateFile) {
-            return prevMessages;
+          if (duplicate) {
+            return filteredMessages;
           }
+          
+          return [...filteredMessages, message];
         }
         
         // For system messages without IDs, check by content and timestamp
