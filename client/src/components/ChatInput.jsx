@@ -371,12 +371,13 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       )}
       
       <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 md:gap-3 max-w-5xl mx-auto">
-        {/* Hidden file input - no camera option, only file selection */}
+        {/* Hidden file input - only file selection from storage, no camera */}
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept=".jpg,.jpeg,.png,.gif,.webp,.pdf,.txt,.doc,.docx"
+          accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+          capture={false}
           className="hidden"
         />
         
