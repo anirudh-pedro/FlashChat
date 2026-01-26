@@ -217,31 +217,43 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         onLocalFilePreview(filePreview);
       }
 
-      // Wait for socket connection if needed (camera can take longer)
+      // Wait for socket connection and room rejoin if needed
       const socket = getSocket();
       
-      const waitForConnection = async (maxWait = 20000) => {
+      const waitForConnectionAndRoom = async (maxWait = 25000) => {
         const startTime = Date.now();
-        console.log('⏳ Waiting for connection...');
+        console.log('⏳ Waiting for connection and room...');
+        
+        // First wait for socket connection
         while (Date.now() - startTime < maxWait) {
           const currentSocket = getSocket();
           if (currentSocket && currentSocket.connected) {
-            console.log('✅ Socket connected, waiting for room rejoin...');
-            // Give extra time for room rejoin after camera closes
-            await new Promise(resolve => setTimeout(resolve, 2000));
-            return true;
+            console.log('✅ Socket connected');
+            break;
           }
           await new Promise(resolve => setTimeout(resolve, 500));
         }
-        return false;
+        
+        const currentSocket = getSocket();
+        if (!currentSocket || !currentSocket.connected) {
+          console.error('❌ Socket connection timeout');
+          return false;
+        }
+        
+        // Wait longer for room rejoin to complete (3-4 seconds)
+        console.log('⏳ Waiting for room rejoin to complete...');
+        await new Promise(resolve => setTimeout(resolve, 4000));
+        
+        console.log('✅ Ready to upload');
+        return true;
       };
       
       if (!socket || !socket.connected) {
         console.log('🔌 Socket disconnected (camera opened), waiting for reconnection...');
-        const reconnected = await waitForConnection(20000);
+        const ready = await waitForConnectionAndRoom(25000);
         
-        if (!reconnected) {
-          console.error('❌ Connection timeout after camera');
+        if (!ready) {
+          console.error('❌ Connection/room timeout after camera');
           // Keep the file data for retry - don't remove it
           if (onLocalFilePreview) {
             onLocalFilePreview({ 
@@ -260,7 +272,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           alert('Connection timeout. Please tap retry to upload.');
           return;
         }
-        console.log('✅ Reconnected successfully');
+        console.log('✅ Reconnected and rejoined room successfully');
       }
 
       // Send file via socket

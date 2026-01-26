@@ -112,16 +112,18 @@ const ChatPage = () => {
         } else if (socketInstance && socketInstance.connected && hasJoinedRef.current) {
           // Ensure we're still in the room after coming back
           console.log('Socket connected, ensuring room membership...');
-          // Give server a moment to recognize the connection
+          // Give server a moment to recognize the connection, then rejoin
           setTimeout(() => {
             if (socketInstance.connected && hasJoinedRef.current) {
               joinRoom({ username: usernameRef.current, room: roomRef.current }, (response) => {
                 if (response && response.error) {
                   console.log('Failed to rejoin after background:', response.error);
+                } else {
+                  console.log('✅ Successfully rejoined room after background');
                 }
               });
             }
-          }, 500);
+          }, 800);
         }
       }
     };
