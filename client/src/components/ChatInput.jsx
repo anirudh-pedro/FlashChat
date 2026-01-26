@@ -420,6 +420,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           ref={fileInputRef}
           onChange={handleFileSelect}
           accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
+          capture="filesystem" // Hint mobile OS to open file picker instead of camera
           className="hidden"
         />
         
