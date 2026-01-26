@@ -214,15 +214,16 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         onLocalFilePreview(filePreview);
       }
 
-      // Wait for socket connection if needed
+      // Wait for socket connection if needed (camera can take longer)
       const socket = getSocket();
       
-      const waitForConnection = async (maxWait = 8000) => {
+      const waitForConnection = async (maxWait = 15000) => {
         const startTime = Date.now();
         while (Date.now() - startTime < maxWait) {
           const currentSocket = getSocket();
           if (currentSocket && currentSocket.connected) {
-            await new Promise(resolve => setTimeout(resolve, 1000));
+            // Give extra time for room rejoin after camera closes
+            await new Promise(resolve => setTimeout(resolve, 1500));
             return true;
           }
           await new Promise(resolve => setTimeout(resolve, 300));
@@ -231,8 +232,8 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       };
       
       if (!socket || !socket.connected) {
-        console.log('Socket disconnected, waiting for reconnection...');
-        const reconnected = await waitForConnection(8000);
+        console.log('Socket disconnected (camera opened), waiting for reconnection...');
+        const reconnected = await waitForConnection(15000);
         
         if (!reconnected) {
           // Update status to failed

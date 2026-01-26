@@ -101,14 +101,27 @@ const ChatPage = () => {
 
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
-       
         console.log('App went to background - staying in room');
+        // Don't disconnect when camera/file picker opens
       } else if (document.visibilityState === 'visible') {
         console.log('App became visible - checking connection');
         const socketInstance = getSocket();
         if (socketInstance && !socketInstance.connected) {
           console.log('Socket disconnected while in background, reconnecting...');
           socketInstance.connect();
+        } else if (socketInstance && socketInstance.connected && hasJoinedRef.current) {
+          // Ensure we're still in the room after coming back
+          console.log('Socket connected, ensuring room membership...');
+          // Give server a moment to recognize the connection
+          setTimeout(() => {
+            if (socketInstance.connected && hasJoinedRef.current) {
+              joinRoom({ username: usernameRef.current, room: roomRef.current }, (response) => {
+                if (response && response.error) {
+                  console.log('Failed to rejoin after background:', response.error);
+                }
+              });
+            }
+          }, 500);
         }
       }
     };
