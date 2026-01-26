@@ -191,7 +191,10 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
-        reader.onerror = reject;
+        reader.onerror = (error) => {
+          console.error('FileReader error:', error);
+          reject(error);
+        };
         reader.readAsDataURL(file);
       });
 
@@ -217,55 +220,82 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       // Wait for socket connection if needed (camera can take longer)
       const socket = getSocket();
       
-      const waitForConnection = async (maxWait = 15000) => {
+      const waitForConnection = async (maxWait = 20000) => {
         const startTime = Date.now();
+        console.log('⏳ Waiting for connection...');
         while (Date.now() - startTime < maxWait) {
           const currentSocket = getSocket();
           if (currentSocket && currentSocket.connected) {
+            console.log('✅ Socket connected, waiting for room rejoin...');
             // Give extra time for room rejoin after camera closes
-            await new Promise(resolve => setTimeout(resolve, 1500));
+            await new Promise(resolve => setTimeout(resolve, 2000));
             return true;
           }
-          await new Promise(resolve => setTimeout(resolve, 300));
+          await new Promise(resolve => setTimeout(resolve, 500));
         }
         return false;
       };
       
       if (!socket || !socket.connected) {
-        console.log('Socket disconnected (camera opened), waiting for reconnection...');
-        const reconnected = await waitForConnection(15000);
+        console.log('🔌 Socket disconnected (camera opened), waiting for reconnection...');
+        const reconnected = await waitForConnection(20000);
         
         if (!reconnected) {
-          // Update status to failed
+          console.error('❌ Connection timeout after camera');
+          // Keep the file data for retry - don't remove it
           if (onLocalFilePreview) {
-            onLocalFilePreview({ ...filePreview, status: 'failed' });
+            onLocalFilePreview({ 
+              id: tempId, 
+              fileName: file.name,
+              fileType: file.type,
+              fileSize: file.size,
+              fileData: base64Data,
+              isImage: file.type.startsWith('image/'),
+              status: 'failed' 
+            });
           }
           if (fileInputRef.current) {
             fileInputRef.current.value = '';
           }
+          alert('Connection timeout. Please tap retry to upload.');
           return;
         }
+        console.log('✅ Reconnected successfully');
       }
 
       // Send file via socket
+      console.log('📤 Uploading file...');
       const result = await onSendFile({
         tempId,
         fileName: file.name,
         fileType: file.type,
         fileSize: file.size,
         fileData: base64Data
+      }).catch(err => {
+        console.error('Upload error:', err);
+        return { error: err.message || 'Upload failed' };
       });
       
       if (result && result.error) {
-        // Update status to failed
+        console.error('❌ Upload failed:', result.error);
+        // Keep file data for retry
         if (onLocalFilePreview) {
-          onLocalFilePreview({ id: tempId, status: 'failed' });
+          onLocalFilePreview({ 
+            id: tempId,
+            fileName: file.name,
+            fileType: file.type,
+            fileSize: file.size,
+            fileData: base64Data,
+            isImage: file.type.startsWith('image/'),
+            status: 'failed' 
+          });
         }
+      } else {
+        console.log('✅ Upload successful');
       }
-      // Success case - temp message will be removed by sendFile
     } catch (error) {
-      console.error('Error reading file:', error);
-      alert('Failed to read file. Please try again.');
+      console.error('Error in file upload process:', error);
+      alert('Failed to process file. Please try again.');
     } finally {
       // Reset file input
       if (fileInputRef.current) {
@@ -372,13 +402,12 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       )}
       
       <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 md:gap-3 max-w-5xl mx-auto">
-        {/* Hidden file input - only file selection from storage, no camera */}
+        {/* Hidden file input - generic file picker without camera option */}
         <input
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
-          capture={false}
+          accept="*/*"
           className="hidden"
         />
         
