@@ -162,8 +162,8 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
-  const handleFileSelect = async (e) => {
-    const file = e.target.files?.[0];
+  const handleFileSelect = async (e, directFile) => {
+    const file = directFile || e.target.files?.[0];
     if (!file) return;
 
     // Validate file size
@@ -420,14 +420,42 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           ref={fileInputRef}
           onChange={handleFileSelect}
           accept=".pdf,.txt,.doc,.docx,.jpg,.jpeg,.png,.gif,.webp"
-          capture="filesystem" // Hint mobile OS to open file picker instead of camera
           className="hidden"
         />
         
         {/* File attachment button */}
         <button 
           type="button"
-          onClick={() => fileInputRef.current?.click()}
+          onClick={async () => {
+            // Try File System Access API first to avoid camera option
+            if (window.showOpenFilePicker) {
+              try {
+                const [handle] = await window.showOpenFilePicker({
+                  multiple: false,
+                  types: [
+                    {
+                      description: 'Images and documents',
+                      accept: {
+                        'image/*': ['.jpg', '.jpeg', '.png', '.gif', '.webp'],
+                        'application/pdf': ['.pdf'],
+                        'text/plain': ['.txt'],
+                        'application/msword': ['.doc'],
+                        'application/vnd.openxmlformats-officedocument.wordprocessingml.document': ['.docx']
+                      }
+                    }
+                  ],
+                  excludeAcceptAllOption: false
+                });
+                const file = await handle.getFile();
+                await handleFileSelect(null, file);
+                return;
+              } catch (err) {
+                // If user cancels or API fails, fallback to input
+                console.warn('File picker fallback:', err);
+              }
+            }
+            fileInputRef.current?.click();
+          }}
           className="p-1.5 sm:p-2 md:p-2.5 rounded-lg sm:rounded-xl transition-colors flex-shrink-0 cursor-pointer flex items-center justify-center text-gray-300 hover:bg-neutral-800"
           aria-label="Attach file"
           title="Attach file or image"
