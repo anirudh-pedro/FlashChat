@@ -376,7 +376,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           type="file"
           ref={fileInputRef}
           onChange={handleFileSelect}
-          accept="image/*,.pdf,.txt,.doc,.docx"
+          accept="image/jpeg,image/png,image/gif,image/webp,.pdf,.txt,.doc,.docx"
           className="hidden"
         />
         
