@@ -148,7 +148,7 @@ const JoinPage = () => {
   };
 
   return (
-    <div className="min-h-screen bg-neutral-950 flex items-center justify-center p-4 sm:p-6 relative overflow-hidden">
+    <div className="min-h-dvh bg-neutral-950 flex items-center justify-center p-4 sm:p-6 relative overflow-y-auto">
       <div className="absolute inset-0 overflow-hidden pointer-events-none">
         <svg className="absolute w-full h-full" preserveAspectRatio="none" viewBox="0 0 1440 800">
           <path 
