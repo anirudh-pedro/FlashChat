@@ -165,15 +165,10 @@ const ChatPage = () => {
     };
 
     const handleMessage = (message) => {
-      console.log('📨 Received message:', message.id, message.type, message.fileName || message.text?.substring(0, 20));
-      
       setMessages((prevMessages) => {
-        console.log('Current messages count:', prevMessages.length);
-        
         // Check if this message already exists (by id)
-        const existingById = prevMessages.find(msg => msg.id === message.id);
+        const existingById = prevMessages.find(msg => msg.id && message.id && msg.id === message.id);
         if (existingById) {
-          console.log('⚠️ Duplicate message by ID, skipping:', message.id);
           return prevMessages;
         }
         
@@ -187,12 +182,23 @@ const ChatPage = () => {
           );
           
           if (duplicateFile) {
-            console.log('⚠️ Duplicate file message, skipping:', message.fileName);
             return prevMessages;
           }
         }
         
-        console.log('✅ Adding new message:', message.id);
+        // For system messages without IDs, check by content and timestamp
+        if (!message.id && message.user === 'System') {
+          const duplicateSystem = prevMessages.find(msg => 
+            msg.user === 'System' && 
+            msg.text === message.text && 
+            Math.abs(msg.createdAt - message.createdAt) < 1000
+          );
+          
+          if (duplicateSystem) {
+            return prevMessages;
+          }
+        }
+        
         return [...prevMessages, message];
       });
     };
