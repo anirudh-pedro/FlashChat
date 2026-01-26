@@ -20,9 +20,7 @@ const ChatHeader = ({
         <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
           {/* Logo */}
           <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
-            <div className="w-8 h-8 bg-white rounded-lg flex items-center justify-center">
-              <FaBolt className="text-neutral-950 text-sm" />
-            </div>
+            <img src="/logo.jpg" alt="FlashChat Logo" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-bold text-lg hidden lg:block">FlashChat</span>
           </div>
           

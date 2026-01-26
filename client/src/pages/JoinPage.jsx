@@ -174,10 +174,8 @@ const JoinPage = () => {
 
       <div className="w-full max-w-[360px] relative z-10">
         <div className="text-center mb-6 sm:mb-8">
-          <div className="inline-flex items-center gap-2 mb-2">
-            <div className="w-8 h-8 bg-neutral-200 rounded-lg flex items-center justify-center">
-              <HiLightningBolt className="text-lg text-neutral-900" />
-            </div>
+          <div className="inline-flex items-center gap-3 mb-2">
+            <img src="/logo.jpg" alt="FlashChat Logo" className="w-10 h-10 rounded-lg object-cover" />
             <span className="text-xl font-bold text-neutral-100 tracking-tight">FlashChat</span>
           </div>
           <p className="text-neutral-500 text-xs">Anonymous instant messaging</p>
