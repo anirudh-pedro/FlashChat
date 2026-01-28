@@ -12,7 +12,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
   const isLongPress = useRef(false);
   const menuRef = useRef(null);
 
-  // Close menu when clicking outside
   useEffect(() => {
     const handleClickOutside = (event) => {
       if (showMenu && menuRef.current && !menuRef.current.contains(event.target)) {
@@ -31,27 +30,23 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     };
   }, [showMenu]);
   
-  // Format time from timestamp
   const formatTime = (timestamp) => {
     const date = new Date(timestamp);
     return date.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit' });
   };
 
-  // Format file size
   const formatFileSize = (bytes) => {
     if (bytes < 1024) return bytes + ' B';
     if (bytes < 1024 * 1024) return (bytes / 1024).toFixed(1) + ' KB';
     return (bytes / (1024 * 1024)).toFixed(1) + ' MB';
   };
 
-  // Get file icon based on type
   const getFileIcon = () => {
     if (fileType?.includes('pdf')) return <FaFilePdf className="text-red-400" size={24} />;
     if (fileType?.includes('word') || fileType?.includes('document')) return <FaFileWord className="text-blue-400" size={24} />;
     return <FaFileAlt className="text-gray-400" size={24} />;
   };
 
-  // Handle file download
   const handleDownload = () => {
     const link = document.createElement('a');
     link.href = fileData;
@@ -61,7 +56,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     document.body.removeChild(link);
   };
 
-  // Handle edit - copy text to input box
   const handleEdit = () => {
     if (onStartEdit) {
       onStartEdit(id, text);
@@ -69,13 +63,11 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     setShowMenu(false);
   };
 
-  // Handle delete confirmation
   const handleDeleteClick = () => {
     setShowMenu(false);
     setShowDeleteConfirm(true);
   };
 
-  // Confirm delete
   const confirmDelete = () => {
     if (onDeleteMessage) {
       onDeleteMessage(id);
@@ -83,12 +75,10 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     setShowDeleteConfirm(false);
   };
 
-  // Cancel delete
   const cancelDelete = () => {
     setShowDeleteConfirm(false);
   };
 
-  // Long press handlers for mobile - works on all messages for copy, own messages for edit/delete
   const handleTouchStart = () => {
     if (type === 'file' || user === 'System') return;
     
@@ -96,7 +86,7 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     longPressTimer.current = setTimeout(() => {
       isLongPress.current = true;
       setShowMobileMenu(true);
-    }, 500); // 500ms long press
+    }, 500);
   };
 
   const handleTouchEnd = () => {
@@ -111,7 +101,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     }
   };
 
-  // Mobile menu handlers
   const handleMobileEdit = () => {
     setShowMobileMenu(false);
     if (onStartEdit) {
@@ -124,7 +113,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     setShowDeleteConfirm(true);
   };
 
-  // Copy message handler
   const handleCopy = async () => {
     if (!text) return;
     try {
@@ -138,25 +126,21 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     }
   };
 
-  // Helper function to add more padding around single emoji messages
   const isSingleEmoji = (text) => {
     if (!text) return false;
-    // Check if the message is just a single emoji (or very few)
     const emojiRegex = /^(?:[\u2700-\u27bf]|(?:\ud83c[\udde6-\uddff]){2}|[\ud800-\udbff][\udc00-\udfff]|[\u0023-\u0039]\ufe0f?\u20e3|\u3299|\u3297|\u303d|\u3030|\u24c2|\ud83c[\udd70-\udd71]|\ud83c[\udd7e-\udd7f]|\ud83c\udd8e|\ud83c[\udd91-\udd9a]|\ud83c[\udde6-\uddff]|\ud83c[\ude01-\ude02]|\ud83c\ude1a|\ud83c\ude2f|\ud83c[\ude32-\ude3a]|\ud83c[\ude50-\ude51]|\u203c|\u2049|[\u25aa-\u25ab]|\u25b6|\u25c0|[\u25fb-\u25fe]|\u00a9|\u00ae|\u2122|\u2139|\ud83c\udc04|[\u2600-\u26FF]|\u2b05|\u2b06|\u2b07|\u2b1b|\u2b1c|\u2b50|\u2b55|\u231a|\u231b|\u2328|\u23cf|[\u23e9-\u23f3]|[\u23f8-\u23fa]|\ud83c\udccf|\u2934|\u2935|[\u2190-\u21ff]){1,3}$/;
     return emojiRegex.test(text);
   };
 
-  // Render file/image content
   const renderFileContent = () => {
     const isUploading = status === 'uploading';
     const isFailed = status === 'failed';
-    const isExpired = !fileData || fileData === 'null'; // No file data available
+    const isExpired = !fileData || fileData === 'null'; 
     
     if (isImage) {
       return (
         <div className="relative">
           {isExpired ? (
-            // Show expired image placeholder
             <div className="w-64 h-40 bg-neutral-800 rounded-lg flex flex-col items-center justify-center gap-2 border border-neutral-700">
               <div className="w-16 h-16 bg-neutral-700 rounded-full flex items-center justify-center">
                 <svg className="w-8 h-8 text-neutral-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -186,7 +170,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
                 }`}
               />
               
-              {/* Loading overlay */}
               {isUploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px]">
                   <div className="flex flex-col items-center gap-2">
@@ -196,7 +179,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
                 </div>
               )}
               
-              {/* Failed overlay with retry */}
               {isFailed && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/50 backdrop-blur-[1px]">
                   <div className="flex flex-col items-center gap-3">
@@ -231,11 +213,9 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
       );
     }
 
-    // Non-image file
     return (
       <div className="relative">
         {isExpired ? (
-          // Show expired file placeholder
           <div 
             className={`flex items-center gap-3 p-3 rounded-lg ${
               isOwnMessage ? 'bg-neutral-100' : 'bg-neutral-800'
@@ -277,7 +257,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
                 <FaDownload className={`flex-shrink-0 ${isOwnMessage ? 'text-neutral-600' : 'text-gray-400'}`} size={16} />
               )}
               
-              {/* Loading overlay for files */}
               {isUploading && (
                 <div className="absolute inset-0 flex items-center justify-center bg-black/40 backdrop-blur-[1px] rounded-lg">
                   <div className="flex items-center gap-2">
@@ -288,7 +267,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
               )}
             </div>
             
-            {/* Failed state for files - retry button below */}
             {isFailed && (
               <div className="mt-2 flex items-center justify-center">
                 <button
@@ -317,7 +295,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     );
   };
 
-  // Image modal for fullscreen view
   const ImageModal = () => {
     if (!showImageModal || !isImage) return null;
     
@@ -352,7 +329,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     );
   };
 
-  // Delete confirmation modal
   const DeleteConfirmModal = () => {
     if (!showDeleteConfirm) return null;
     
@@ -391,7 +367,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
     );
   };
 
-  // Mobile action sheet (WhatsApp-style bottom sheet) - available for all messages (copy), own messages (edit/delete)
   const MobileActionSheet = () => {
     if (!showMobileMenu || type === 'file' || user === 'System') return null;
     
@@ -447,7 +422,6 @@ const Message = ({ message, isOwnMessage, onEditMessage, onDeleteMessage, onStar
             <div className="font-medium text-xs text-gray-400 mb-1 ml-1">{user}</div>
           )}
           
-          {/* Message actions menu for own messages - DESKTOP ONLY (hidden on mobile) */}
           {isOwnMessage && type !== 'file' && user !== 'System' && id && onStartEdit && onDeleteMessage && (
             <div 
               ref={menuRef}

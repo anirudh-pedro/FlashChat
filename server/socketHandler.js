@@ -1,4 +1,3 @@
-// Redis-based user management (with in-memory fallback)
 const { 
   addUser, 
   removeUser, 
@@ -21,7 +20,6 @@ const {
   ROOM_CAPACITY
 } = require('./utils/userManagerRedis');
 
-// Redis message persistence
 const { 
   saveMessage, 
   getRecentMessages, 
@@ -30,32 +28,20 @@ const {
   clearRoomMessages
 } = require('./src/services/messageService');
 
-// ==================== INPUT SANITIZATION ====================
-/**
- * Sanitize user input to prevent XSS (Cross-Site Scripting) attacks
- * This function removes or escapes potentially dangerous characters
- * 
- * @param {string} input - Raw user input
- * @returns {string} - Sanitized safe string
- */
 const sanitizeInput = (input) => {
   if (typeof input !== 'string') {
     return '';
   }
   
   return input
-    // Remove null bytes (can cause issues)
     .replace(/\0/g, '')
-    // Escape HTML special characters to prevent XSS
     .replace(/&/g, '&amp;')
     .replace(/</g, '&lt;')
     .replace(/>/g, '&gt;')
     .replace(/"/g, '&quot;')
     .replace(/'/g, '&#x27;')
     .replace(/\//g, '&#x2F;')
-    // Remove any control characters except newline and tab
     .replace(/[\x00-\x08\x0B\x0C\x0E-\x1F\x7F]/g, '')
-    // Trim whitespace
     .trim();
 };
 
@@ -73,11 +59,8 @@ const sanitizeUsername = (username) => {
   
   return username
     .trim()
-    // Remove any characters that aren't alphanumeric, space, underscore, or hyphen
     .replace(/[^a-zA-Z0-9 _-]/g, '')
-    // Collapse multiple spaces into one
     .replace(/\s+/g, ' ')
-    // Remove leading/trailing spaces again
     .trim();
 };
 
@@ -95,8 +78,6 @@ const sanitizeRoomId = (roomId) => {
   return roomId
     .trim()
     .toUpperCase()
-    // For location-based rooms, allow LOC_ prefix with numbers, dots, and minus
-    // For regular rooms, only allow alphanumeric characters
     .replace(/[^A-Z0-9._-]/g, '');
 };
 
@@ -276,7 +257,6 @@ const setupSocketHandlers = (io) => {
         const sanitizedUsername = sanitizeUsername(username);
         const sanitizedRoom = sanitizeRoomId(room);
         
-        // Check if sanitization removed everything (suspicious input)
         if (!sanitizedUsername || !sanitizedRoom) {
           if (callback) callback({ error: 'Invalid username or room ID format' });
           return;

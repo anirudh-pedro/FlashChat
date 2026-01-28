@@ -16,18 +16,14 @@ const ChatHeader = ({
   return (
     <header className="bg-neutral-900/95 backdrop-blur-sm border-b border-neutral-800 text-white px-3 sm:px-4 md:px-6 py-2 sm:py-3 md:py-4 shadow-xl flex-shrink-0" style={{ paddingTop: 'max(0.5rem, env(safe-area-inset-top))' }}>
       <div className="max-w-7xl mx-auto flex items-center justify-between gap-2 sm:gap-4">
-        {/* Left: Logo & Room Info */}
         <div className="flex items-center gap-3 md:gap-4 min-w-0 flex-1">
-          {/* Logo */}
           <div className="hidden sm:flex items-center gap-2 flex-shrink-0">
             <img src="/logo.jpg" alt="FlashChat Logo" className="w-8 h-8 rounded-lg object-cover" />
             <span className="font-bold text-lg hidden lg:block">FlashChat</span>
           </div>
           
-          {/* Divider */}
           <div className="hidden sm:block h-6 w-px bg-neutral-700"></div>
           
-          {/* Room Info */}
           <div className="flex flex-col min-w-0 flex-1">
             <div className="flex items-center gap-2">
               {isLocationBased || joinMethod === "location" ? (
@@ -59,9 +55,7 @@ const ChatHeader = ({
           </div>
         </div>
         
-        {/* Right: Actions */}
         <div className="flex items-center gap-2 flex-shrink-0">
-          {/* Pending Requests Button (Admin only) */}
           {isAdmin && pendingCount > 0 && (
             <button 
               onClick={onTogglePending}

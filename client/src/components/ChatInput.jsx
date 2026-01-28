@@ -13,31 +13,25 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
   const typingTimeoutRef = useRef(null);
   const isTypingRef = useRef(false);
   const MAX_MESSAGE_LENGTH = 1000;
-  const MAX_FILE_SIZE = 5 * 1024 * 1024; // 5MB
+  const MAX_FILE_SIZE = 5 * 1024 * 1024;
 
-  // Populate input when editing a message
   useEffect(() => {
     if (editingMessage) {
       setMessage(editingMessage.text);
-      // Focus the textarea
       setTimeout(() => textareaRef.current?.focus(), 100);
     }
   }, [editingMessage]);
 
-  // Auto-resize textarea with scrollbar when exceeding max height
   useEffect(() => {
     if (textareaRef.current) {
-      // Reset height to auto to get the correct scrollHeight
       textareaRef.current.style.height = 'auto';
       const scrollHeight = textareaRef.current.scrollHeight;
       const maxHeight = 120;
       
       if (scrollHeight > maxHeight) {
-        // Content exceeds max, set to max and enable scroll
         textareaRef.current.style.height = maxHeight + 'px';
         textareaRef.current.style.overflowY = 'auto';
       } else {
-        // Content fits, use scrollHeight
         textareaRef.current.style.height = scrollHeight + 'px';
         textareaRef.current.style.overflowY = 'hidden';
       }
@@ -45,7 +39,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
   }, [message]);
   
   useEffect(() => {
-    // Close emoji picker when clicking outside
     const handleClickOutside = (event) => {
       if (emojiPickerRef.current && !emojiPickerRef.current.contains(event.target) && 
           emojiButtonRef.current && !emojiButtonRef.current.contains(event.target)) {
@@ -68,20 +61,17 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       return;
     }
     
-    // Check message length (client-side validation)
     if (trimmedMessage.length > 1000) {
       alert("Message is too long. Maximum 1000 characters allowed.");
       return;
     }
 
-    // Stop typing indicator when sending message
     const socket = getSocket();
     if (socket && isTypingRef.current) {
       socket.emit("stopTyping");
       isTypingRef.current = false;
     }
     
-    // Clear typing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
       typingTimeoutRef.current = null;
@@ -90,10 +80,8 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     onSendMessage(trimmedMessage);
     setMessage("");
     
-    // Reset textarea height and keep focus to maintain keyboard
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
-      // Maintain focus synchronously to prevent keyboard from closing
       textareaRef.current.focus();
     }
   };
@@ -101,24 +89,20 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
   const handleCancelEdit = () => {
     setMessage("");
     onCancelEdit?.();
-    // Reset textarea height
     if (textareaRef.current) {
       textareaRef.current.style.height = 'auto';
     }
   };
 
   const handleKeyDown = (e) => {
-    // Submit on Enter (without Shift)
     if (e.key === 'Enter' && !e.shiftKey) {
       e.preventDefault();
       handleSubmit(e);
     }
-    // Cancel editing on Escape
     if (e.key === 'Escape' && editingMessage) {
       e.preventDefault();
       handleCancelEdit();
     }
-    // Shift+Enter will naturally create a new line in textarea
   };
 
   const handleMessageChange = (e) => {
@@ -128,18 +112,15 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     const socket = getSocket();
     if (!socket) return;
 
-    // Emit typing event if not already typing
     if (newMessage.trim() && !isTypingRef.current) {
       socket.emit("typing");
       isTypingRef.current = true;
     }
 
-    // Clear existing timeout
     if (typingTimeoutRef.current) {
       clearTimeout(typingTimeoutRef.current);
     }
 
-    // Set new timeout to stop typing after 2 seconds of inactivity
     if (newMessage.trim()) {
       typingTimeoutRef.current = setTimeout(() => {
         if (isTypingRef.current) {
@@ -148,7 +129,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         }
       }, 2000);
     } else {
-      // If message is empty, stop typing immediately
       if (isTypingRef.current) {
         socket.emit("stopTyping");
         isTypingRef.current = false;
@@ -158,7 +138,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
 
   const handleEmojiClick = (emojiObject) => {
     setMessage(prevMessage => prevMessage + emojiObject.emoji);
-    // Focus the textarea after selecting an emoji
     setTimeout(() => textareaRef.current?.focus(), 100);
   };
 
@@ -166,13 +145,11 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     const file = directFile || e.target.files?.[0];
     if (!file) return;
 
-    // Validate file size
     if (file.size > MAX_FILE_SIZE) {
       alert('File too large. Maximum size is 5MB.');
       return;
     }
 
-    // Validate file type
     const allowedTypes = [
       'image/jpeg', 'image/png', 'image/gif', 'image/webp', 'image/svg+xml',
       'application/pdf',
@@ -187,7 +164,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
     }
 
     try {
-      // Convert file to base64 immediately for preview
       const base64Data = await new Promise((resolve, reject) => {
         const reader = new FileReader();
         reader.onload = () => resolve(reader.result);
@@ -198,7 +174,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         reader.readAsDataURL(file);
       });
 
-      // Create temporary ID for local preview
       const tempId = `temp_${Date.now()}_${Math.random()}`;
       
       // Show file immediately in chat with loading state
@@ -209,15 +184,13 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         fileSize: file.size,
         fileData: base64Data,
         isImage: file.type.startsWith('image/'),
-        status: 'uploading' // uploading, sent, failed
+        status: 'uploading'
       };
       
-      // Send to parent to display in messages
       if (onLocalFilePreview) {
         onLocalFilePreview(filePreview);
       }
 
-      // Wait for socket connection and room rejoin if needed
       const socket = getSocket();
       
       const waitForConnectionAndRoom = async (maxWait = 25000) => {
@@ -240,7 +213,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           return false;
         }
         
-        // Wait longer for room rejoin to complete (3-4 seconds)
+
         console.log('⏳ Waiting for room rejoin to complete...');
         await new Promise(resolve => setTimeout(resolve, 4000));
         
@@ -254,7 +227,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         
         if (!ready) {
           console.error('❌ Connection/room timeout after camera');
-          // Keep the file data for retry - don't remove it
           if (onLocalFilePreview) {
             onLocalFilePreview({ 
               id: tempId, 
@@ -275,7 +247,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
         console.log('✅ Reconnected and rejoined room successfully');
       }
 
-      // Send file via socket
       console.log('📤 Uploading file...');
       const result = await onSendFile({
         tempId,
@@ -290,7 +261,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       
       if (result && result.error) {
         console.error('❌ Upload failed:', result.error);
-        // Keep file data for retry
         if (onLocalFilePreview) {
           onLocalFilePreview({ 
             id: tempId,
@@ -309,7 +279,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       console.error('Error in file upload process:', error);
       alert('Failed to process file. Please try again.');
     } finally {
-      // Reset file input
       if (fileInputRef.current) {
         fileInputRef.current.value = '';
       }
@@ -322,7 +291,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
 
   return (
     <div className="bg-neutral-900 border-t border-neutral-800 px-2 py-2 sm:px-4 sm:py-3 md:px-6 md:py-4 relative flex-shrink-0">
-      {/* Editing indicator */}
       {editingMessage && (
         <div className="flex items-center justify-between gap-2 pb-2 mb-2 border-b border-neutral-800 max-w-5xl mx-auto">
           <div className="flex items-center gap-2 text-sm text-white">
@@ -414,7 +382,7 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
       )}
       
       <form onSubmit={handleSubmit} className="flex items-end gap-1.5 sm:gap-2 md:gap-3 max-w-5xl mx-auto">
-        {/* Hidden file input - only documents and images, no videos */}
+
         <input
           type="file"
           ref={fileInputRef}
@@ -423,7 +391,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           className="hidden"
         />
         
-        {/* File attachment button */}
         <button 
           type="button"
           onClick={async () => {
@@ -463,7 +430,6 @@ const ChatInput = ({ onSendMessage, onSendFile, editingMessage, onCancelEdit, on
           <FaPaperclip className="w-5 h-5 sm:w-[18px] sm:h-[18px] md:w-5 md:h-5" />
         </button>
 
-        {/* Emoji button - hidden on mobile, tablets, and small laptops */}
         <button 
           type="button"
           ref={emojiButtonRef}

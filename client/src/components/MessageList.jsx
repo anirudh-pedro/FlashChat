@@ -4,7 +4,6 @@ import Message from "./Message";
 const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, onStartEdit, onRetryUpload }) => {
   const messagesEndRef = useRef(null);
 
-  // Auto-scroll to bottom when new messages arrive
   useEffect(() => {
     scrollToBottom();
   }, [messages]);
@@ -13,7 +12,6 @@ const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, on
     messagesEndRef.current?.scrollIntoView({ behavior: "instant", block: "end" });
   };
 
-  // Group messages by date for date separators
   const groupMessagesByDate = () => {
     const groups = [];
     let currentDate = null;
@@ -24,14 +22,13 @@ const MessageList = ({ messages, currentUser, onEditMessage, onDeleteMessage, on
       
       if (messageDate !== currentDate) {
         currentDate = messageDate;
-        prevUser = null; // Reset prev user on new date
+        prevUser = null;
         groups.push({
           type: 'date',
           date: messageDate
         });
       }
       
-      // Check if this message is from the same user as the previous one
       const isSameUserAsPrev = prevUser === message.user;
       prevUser = message.user;
       

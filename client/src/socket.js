@@ -1,9 +1,6 @@
 import { io } from 'socket.io-client';
 
-// Default to localhost for development
-// Use VITE_API_URL if set, otherwise detect based on current location
 const getEndpoint = () => {
-  // If running on localhost/127.0.0.1, use local server
   if (typeof window !== 'undefined') {
     const hostname = window.location.hostname;
     if (hostname === 'localhost' || hostname === '127.0.0.1') {
@@ -11,7 +8,6 @@ const getEndpoint = () => {
     }
   }
   
-  // Otherwise use production server
   return import.meta.env.VITE_API_URL || 'https://flashchat-oyd6.onrender.com';
 };
 
@@ -19,20 +15,15 @@ const ENDPOINT = getEndpoint();
 
 console.log('🔌 Connecting to:', ENDPOINT);
 
-// Create a socket instance
 let socket;
 
-// Track intentional leave to avoid unwanted cleanup
 let isIntentionalLeave = false;
 
-// Set intentional leave flag (used by ChatPage for cleanup coordination)
 export const setIntentionalLeave = (value) => {
   isIntentionalLeave = value;
 };
 
-// Initialize socket connection
 export const initSocket = () => {
-  // Return existing socket if already connected
   if (socket && socket.connected) {
     console.log("Socket already connected", socket.id);
     return socket;
@@ -40,16 +31,15 @@ export const initSocket = () => {
   
   console.log("Initializing socket connection");
   socket = io(ENDPOINT, {
-    transports: ['websocket', 'polling'], // Use polling as fallback
+    transports: ['websocket', 'polling'],
     reconnection: true,
-    reconnectionAttempts: 15, // More reconnection attempts for mobile
-    reconnectionDelay: 500, // Faster initial reconnection
-    reconnectionDelayMax: 3000, // Cap the delay
-    timeout: 30000, // Increase timeout to 30 seconds for slow servers
+    reconnectionAttempts: 15,
+    reconnectionDelay: 500,
+    reconnectionDelayMax: 3000,
+    timeout: 30000,
     autoConnect: true,
-    // Mobile-specific: keep connection alive longer
-    pingTimeout: 60000, // 60 seconds before considering connection dead
-    pingInterval: 25000, // Ping every 25 seconds
+    pingTimeout: 60000,
+    pingInterval: 25000,
   });
   
   socket.on('connect', () => {
@@ -71,7 +61,6 @@ export const initSocket = () => {
   return socket;
 };
 
-// Get the current socket instance
 export const getSocket = () => {
   if (!socket) {
     return initSocket();
@@ -79,7 +68,6 @@ export const getSocket = () => {
   return socket;
 };
 
-// Disconnect socket
 export const disconnectSocket = () => {
   console.log("Disconnecting socket", socket?.id, "Connected:", socket?.connected);
   if (socket && socket.connected) {
@@ -87,49 +75,41 @@ export const disconnectSocket = () => {
   }
 };
 
-// Join a room
 export const joinRoom = (userData, callback) => {
   if (!socket) initSocket();
   
-  // Get admin token from localStorage for this room if it exists
   const storedToken = localStorage.getItem(`adminToken_${userData.room}`);
   const dataWithToken = { ...userData, adminToken: storedToken };
   
   socket.emit('join', dataWithToken, callback);
 };
 
-// Send a message
 export const sendMessage = (message, callback) => {
   if (!socket) return;
   socket.emit('sendMessage', message, callback);
 };
 
-// Leave a room (intentional leave)
 export const leaveRoom = () => {
   if (!socket) return;
   isIntentionalLeave = true;
   socket.emit('leaveRoom');
 };
 
-// Approve a join request (admin only)
 export const approveJoin = (pendingSocketId, room, callback) => {
   if (!socket) return;
   socket.emit('approveJoin', { pendingSocketId, room }, callback);
 };
 
-// Reject a join request (admin only)
 export const rejectJoin = (pendingSocketId, room, reason, callback) => {
   if (!socket) return;
   socket.emit('rejectJoin', { pendingSocketId, room, reason }, callback);
 };
 
-// Cancel pending join request
 export const cancelJoinRequest = (room, callback) => {
   if (!socket) return;
   socket.emit('cancelJoinRequest', { room }, callback);
 };
 
-// Kick a user from room (admin only)
 export const kickUser = (targetSocketId, room, callback) => {
   if (!socket) return;
   socket.emit('kickUser', { targetSocketId, room }, callback);

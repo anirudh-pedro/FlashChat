@@ -19,7 +19,7 @@ const ChatPage = () => {
   const [socket, setSocket] = useState(null);
   const [showUsersList, setShowUsersList] = useState(false);
   const [typingUsers, setTypingUsers] = useState([]);
-  const [editingMessage, setEditingMessage] = useState(null); // { id, text }
+  const [editingMessage, setEditingMessage] = useState(null); 
   const [isAdmin, setIsAdmin] = useState(false);
   const [pendingUsers, setPendingUsers] = useState([]);
   const [showPendingPanel, setShowPendingPanel] = useState(false);
@@ -67,7 +67,6 @@ const ChatPage = () => {
           toast.error(response.error);
           navigate("/join");
         } else if (response && response.pending) {
-          // Waiting for admin approval
           setIsPendingApproval(true);
           toast.info("Waiting for admin approval...");
         } else {
@@ -102,7 +101,6 @@ const ChatPage = () => {
     const handleVisibilityChange = () => {
       if (document.visibilityState === 'hidden') {
         console.log('App went to background - staying in room');
-        // Don't disconnect when camera/file picker opens
       } else if (document.visibilityState === 'visible') {
         console.log('App became visible - checking connection');
         const socketInstance = getSocket();
@@ -110,9 +108,7 @@ const ChatPage = () => {
           console.log('Socket disconnected while in background, reconnecting...');
           socketInstance.connect();
         } else if (socketInstance && socketInstance.connected && hasJoinedRef.current) {
-          // Ensure we're still in the room after coming back
           console.log('Socket connected, ensuring room membership...');
-          // Give server a moment to recognize the connection, then rejoin
           setTimeout(() => {
             if (socketInstance.connected && hasJoinedRef.current) {
               joinRoom({ username: usernameRef.current, room: roomRef.current }, (response) => {
@@ -168,19 +164,14 @@ const ChatPage = () => {
 
     const handleMessage = (message) => {
       setMessages((prevMessages) => {
-        // Check if this message already exists (by id)
         const existingById = prevMessages.find(msg => msg.id && message.id && msg.id === message.id);
         if (existingById) {
           return prevMessages;
         }
         
-        // For file messages, remove any temp message and add the real one
         if (message.type === 'file') {
-          // Remove temp message if it exists (by checking user and fileName match)
           const filteredMessages = prevMessages.filter(msg => {
-            // Keep all non-temp messages
             if (!msg.tempId && !msg.status) return true;
-            // Remove temp messages that match this file
             if (msg.type === 'file' && 
                 msg.fileName === message.fileName && 
                 msg.user === message.user &&
@@ -190,7 +181,6 @@ const ChatPage = () => {
             return true;
           });
           
-          // Check if this exact message already exists in filtered list
           const duplicate = filteredMessages.find(msg => 
             msg.type === 'file' && 
             msg.fileName === message.fileName && 
@@ -205,7 +195,6 @@ const ChatPage = () => {
           return [...filteredMessages, message];
         }
         
-        // For system messages without IDs, check by content and timestamp
         if (!message.id && message.user === 'System') {
           const duplicateSystem = prevMessages.find(msg => 
             msg.user === 'System' && 
@@ -395,11 +384,9 @@ const ChatPage = () => {
     return new Promise((resolve) => {
       const socketInstance = getSocket();
       
-      // Longer timeout for camera uploads (60 seconds)
       const timeout = setTimeout(() => {
         console.error('⏱️ File upload timeout - no response from server');
         toast.error('File upload timed out. Tap retry on the image.');
-        // Update temp message to failed with all data preserved
         if (fileData.tempId) {
           setMessages(prev => prev.map(msg => 
             (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
@@ -424,8 +411,7 @@ const ChatPage = () => {
         clearTimeout(timeout); 
         if (response && response.error) {
           toast.error('Upload failed: ' + response.error);
-          console.log('❌ File upload failed:', fileData.fileName);
-          // Update temp message to failed with all data preserved
+          console.log('File upload failed:', fileData.fileName);
           if (fileData.tempId) {
             setMessages(prev => prev.map(msg => 
               (msg.id === fileData.tempId || msg.tempId === fileData.tempId)
@@ -443,8 +429,7 @@ const ChatPage = () => {
           }
           resolve({ error: response.error });
         } else {
-          console.log('✅ File uploaded:', fileData.fileName);
-          // Success - remove temp message immediately, server will broadcast the real one
+          console.log('File uploaded:', fileData.fileName);
           if (fileData.tempId) {
             setMessages(prev => prev.filter(msg => 
               msg.id !== fileData.tempId && msg.tempId !== fileData.tempId
@@ -458,8 +443,7 @@ const ChatPage = () => {
 
   const handleLocalFilePreview = (filePreview) => {
     if (filePreview.status === 'uploading') {
-      console.log('➕ Adding temp file preview:', filePreview.id, filePreview.fileName);
-      // Add new preview message (only called once per file)
+      console.log('Adding temp file preview:', filePreview.id, filePreview.fileName);
       setMessages(prev => {
         console.log('Messages before adding temp:', prev.length);
         return [...prev, {
@@ -472,8 +456,7 @@ const ChatPage = () => {
         }];
       });
     } else if (filePreview.status === 'failed') {
-      console.log('❌ Updating temp message to failed:', filePreview.id);
-      // Update to failed status
+      console.log(' Updating temp message to failed:', filePreview.id);
       setMessages(prev => prev.map(msg => 
         (msg.id === filePreview.id || msg.tempId === filePreview.id)
           ? { ...msg, status: 'failed' }
@@ -483,7 +466,6 @@ const ChatPage = () => {
   };
 
   const handleRetryUpload = (messageId, fileData) => {
-    // Retry uploading the file
     const fileToRetry = {
       ...fileData,
       tempId: messageId
