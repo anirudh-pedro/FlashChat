@@ -39,7 +39,6 @@ const keys = {
   roomPending: (roomId) => `room:${roomId}:pending`
 };
 
-// In-memory cleanup timers for rooms (when empty)
 const roomCleanupTimers = new Map();
 
 // ==================== USER OPERATIONS ====================
@@ -59,7 +58,6 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
   username = username.trim().toLowerCase();
   room = room.trim().toUpperCase();
 
-  // Fallback to in-memory if Redis not connected
   if (!isRedisConnected()) {
     console.warn('⚠️ Redis not connected, using in-memory fallback');
     return addUserInMemory({ id, username, room, adminToken, requireAdmin });
@@ -75,7 +73,6 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
       return { error: `Room is full! Maximum capacity: ${capacityCheck.limit} users.` };
     }
 
-    // Check if username is already taken in the room
     const roomUsersKey = keys.roomUsers(room);
     const existingUsers = await redis.sMembers(roomUsersKey);
     
@@ -86,7 +83,6 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
       }
     }
 
-    // Store user data
     const userKey = keys.user(id);
     const userData = {
       id,
@@ -144,11 +140,9 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
         returnAdminToken = adminToken; // Confirm the token
       }
       
-      // If no admin token exists (legacy room), don't make anyone admin
     }
     await redis.expire(roomMetaKey, ROOM_TTL);
 
-    // Clear any cleanup timer for this room
     if (roomCleanupTimers.has(room)) {
       clearTimeout(roomCleanupTimers.get(room));
       roomCleanupTimers.delete(room);
@@ -157,11 +151,11 @@ const addUser = async ({ id, username, room, adminToken = null, requireAdmin = f
 
     // Log
     const updatedCapacity = await checkRoomCapacity(room);
-    console.log(`✅ User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)${isAdmin ? ' [ADMIN]' : ''}`);
+    console.log(` User ${username} joined ${room} (${updatedCapacity.current}/${updatedCapacity.limit} users)${isAdmin ? ' [ADMIN]' : ''}`);
 
     return { user: { id, username, room, isAdmin }, adminToken: returnAdminToken };
   } catch (error) {
-    console.error('❌ Error adding user to Redis:', error.message);
+    console.error(' Redis Error adding user to Redis:', error.message);
     // Fallback to in-memory
     return addUserInMemory({ id, username, room, adminToken, requireAdmin });
   }
@@ -181,7 +175,6 @@ const removeUser = async (id) => {
     const redis = getRedisClient();
     const userKey = keys.user(id);
 
-    // Get user data before removing
     const userData = await redis.hGetAll(userKey);
     
     if (!userData || !userData.username) {
@@ -206,10 +199,10 @@ const removeUser = async (id) => {
     // Delete user data
     await redis.del(userKey);
 
-    console.log(`👋 User ${user.username} left ${user.room}`);
+    console.log(` User ${user.username} left ${user.room}`);
     return user;
   } catch (error) {
-    console.error('❌ Error removing user from Redis:', error.message);
+    console.error(' Redis Error removing user from Redis:', error.message);
     return removeUserInMemory(id);
   }
 };
@@ -238,7 +231,7 @@ const getUser = async (id) => {
       room: userData.room
     };
   } catch (error) {
-    console.error('❌ Error getting user from Redis:', error.message);
+    console.error(' Redis Error getting user from Redis:', error.message);
     return getUserInMemory(id);
   }
 };
@@ -276,7 +269,7 @@ const getUsersInRoom = async (room) => {
 
     return users;
   } catch (error) {
-    console.error('❌ Error getting room users from Redis:', error.message);
+    console.error(' Redis Error getting room users from Redis:', error.message);
     return getUsersInRoomInMemory(room);
   }
 };
@@ -373,7 +366,6 @@ const addUserInMemory = ({ id, username, room, adminToken = null, requireAdmin =
   
   if (!inMemoryRooms.has(room)) {
     if (isLocationRoom || !needsAdmin) {
-      // Location-based rooms OR rooms without admin control don't have admin
       inMemoryRooms.set(room, { 
         userCount: 1,
         requireAdmin: false
@@ -393,7 +385,6 @@ const addUserInMemory = ({ id, username, room, adminToken = null, requireAdmin =
   } else {
     const roomData = inMemoryRooms.get(room);
     roomData.userCount++;
-    // If this user has the admin token, update their socket ID (only for non-location rooms)
     if (!isLocationRoom && adminToken && roomData.adminToken === adminToken) {
       roomData.adminSocketId = id;
       user.isAdmin = true;
@@ -429,9 +420,6 @@ const isRoomActiveInMemory = (room) => {
   return inMemoryRooms.has(room) && inMemoryRooms.get(room).userCount > 0;
 };
 
-// ==================== CLEANUP ====================
-
-// ==================== ADMIN FUNCTIONS ====================
 
 /**
  * Check if a user is the admin of a room (by socket ID only)
@@ -443,7 +431,7 @@ const isRoomAdmin = async (socketId, room) => {
   room = room.trim().toUpperCase();
   
   if (!isRedisConnected()) {
-    // In-memory fallback
+    
     const roomData = inMemoryRooms.get(room);
     return roomData && roomData.adminSocketId === socketId;
   }
@@ -476,7 +464,7 @@ const getRoomAdmin = async (room) => {
     const roomMeta = await redis.hGetAll(keys.roomMeta(room));
     return roomMeta ? roomMeta.adminSocketId : null;
   } catch (error) {
-    console.error('❌ Error getting room admin:', error.message);
+    console.error(' Redis Error getting room admin:', error.message);
     return null;
   }
 };
@@ -499,7 +487,7 @@ const getRoomAdminToken = async (room) => {
     const roomMeta = await redis.hGetAll(keys.roomMeta(room));
     return roomMeta ? roomMeta.adminToken : null;
   } catch (error) {
-    console.error('❌ Error getting room admin token:', error.message);
+    console.error(' Redis Error getting room admin token:', error.message);
     return null;
   }
 };
@@ -522,7 +510,7 @@ const isRoomAdminRequired = async (room) => {
     const roomMeta = await redis.hGetAll(keys.roomMeta(room));
     return roomMeta && roomMeta.requireAdmin === 'true';
   } catch (error) {
-    console.error('❌ Error checking room admin requirement:', error.message);
+    console.error(' Redis Error checking room admin requirement:', error.message);
     return false;
   }
 };
@@ -555,7 +543,7 @@ const addPendingUser = async (room, pendingUser) => {
     await redis.expire(keys.roomPending(room), ROOM_TTL);
     return true;
   } catch (error) {
-    console.error('❌ Error adding pending user:', error.message);
+    console.error(' Redis Error adding pending user:', error.message);
     return false;
   }
 };
@@ -584,7 +572,7 @@ const getPendingUsers = async (room) => {
       }
     }).filter(p => p !== null);
   } catch (error) {
-    console.error('❌ Error getting pending users:', error.message);
+    console.error(' Redis Error getting pending users:', error.message);
     return [];
   }
 };
@@ -626,7 +614,7 @@ const removePendingUser = async (room, socketId) => {
     }
     return null;
   } catch (error) {
-    console.error('❌ Error removing pending user:', error.message);
+    console.error(' Redis Error removing pending user:', error.message);
     return null;
   }
 };
@@ -652,7 +640,7 @@ const clearPendingUsers = async (room) => {
     await redis.del(keys.roomPending(room));
     return true;
   } catch (error) {
-    console.error('❌ Error clearing pending users:', error.message);
+    console.error(' Redis Error clearing pending users:', error.message);
     return false;
   }
 };
@@ -693,7 +681,7 @@ const scheduleRoomCleanup = (room, onCleanup) => {
           await redis.del(keys.roomUsers(room));
           await redis.del(keys.roomPending(room));
         } catch (error) {
-          console.error('❌ Error cleaning up room keys:', error.message);
+          console.error(' Redis Error cleaning up room keys:', error.message);
         }
       }
       

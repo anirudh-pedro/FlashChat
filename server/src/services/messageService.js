@@ -50,7 +50,7 @@ const refreshRoomTTL = async (roomId) => {
  */
 const saveMessage = async (roomId, message) => {
   if (!isRedisConnected()) {
-    console.warn('⚠️ Redis not connected, message not persisted');
+    console.warn('Redis not connected, message not persisted');
     return false;
   }
 
@@ -83,7 +83,7 @@ const saveMessage = async (roomId, message) => {
     
     return true;
   } catch (error) {
-    console.error('❌ Error saving message to Redis:', error.message);
+    console.error('Error saving message to Redis:', error.message);
     return false;
   }
 };
@@ -96,7 +96,7 @@ const saveMessage = async (roomId, message) => {
  */
 const getRecentMessages = async (roomId, count = MESSAGES_TO_FETCH) => {
   if (!isRedisConnected()) {
-    console.warn('⚠️ Redis not connected, cannot fetch messages');
+    console.warn('Redis not connected, cannot fetch messages');
     return [];
   }
 
@@ -113,14 +113,14 @@ const getRecentMessages = async (roomId, count = MESSAGES_TO_FETCH) => {
       try {
         return JSON.parse(json);
       } catch (e) {
-        console.error('❌ Error parsing message JSON:', e.message);
+        console.error('Error parsing message JSON:', e.message);
         return null;
       }
     }).filter(msg => msg !== null);
     
     return messages;
   } catch (error) {
-    console.error('❌ Error fetching messages from Redis:', error.message);
+    console.error('Error fetching messages from Redis:', error.message);
     return [];
   }
 };
@@ -153,7 +153,6 @@ const updateMessage = async (roomId, messageId, ownerId, newText) => {
       try {
         const msg = JSON.parse(json);
         if (msg.id === messageId) {
-          // 🔴 SECURITY: Verify message ownership
           if (!msg.id.startsWith(ownerId)) {
             ownershipError = true;
             return json; // Return unchanged
@@ -185,7 +184,7 @@ const updateMessage = async (roomId, messageId, ownerId, newText) => {
     
     return { success: updated };
   } catch (error) {
-    console.error('❌ Error updating message in Redis:', error.message);
+    console.error('Error updating message in Redis:', error.message);
     return { success: false, error: 'Failed to update message' };
   }
 };
@@ -218,7 +217,6 @@ const deleteMessage = async (roomId, messageId, ownerId) => {
         const msg = JSON.parse(json);
         if (msg.id === messageId) {
           found = true;
-          // 🔴 SECURITY: Verify message ownership
           if (!msg.id.startsWith(ownerId)) {
             ownershipError = true;
             return true; // Keep the message (don't delete)
@@ -249,7 +247,7 @@ const deleteMessage = async (roomId, messageId, ownerId) => {
     
     return { success: true };
   } catch (error) {
-    console.error('❌ Error deleting message from Redis:', error.message);
+    console.error('Error deleting message from Redis:', error.message);
     return { success: false, error: 'Failed to delete message' };
   }
 };
@@ -270,7 +268,7 @@ const clearRoomMessages = async (roomId) => {
     await redis.del(key);
     return true;
   } catch (error) {
-    console.error('❌ Error clearing room messages:', error.message);
+    console.error('Error clearing room messages:', error.message);
     return false;
   }
 };
